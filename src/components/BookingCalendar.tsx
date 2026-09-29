@@ -992,6 +992,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
                     const dayBlock = checkIsDateBlocked(dateStr, selectedBranchId);
                     const isDayBlocked = monthBlockInfo.isBlocked || dayBlock.isBlocked || blockedDates.some((b) => b.date === dateStr);
+                    const isHoliday = HOLIDAYS.includes(dateStr);
 
                     return (
                       <button
@@ -1013,7 +1014,15 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                             : 'bg-zinc-900/70 hover:bg-zinc-800 text-white border border-white/10 hover:border-[#1EB8BF]/70 active:bg-[#1EB8BF]/30'
                         }`}
                       >
-                        <span>{dayNum}</span>
+                        <span className="leading-none">{dayNum}</span>
+                        {isHoliday && !isPast && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full mt-1 ${
+                              isSelected ? 'bg-white' : 'bg-[#F2C700]'
+                            }`}
+                            title="Fecha especial con turnos de fin de semana"
+                          />
+                        )}
                       </button>
                     );
                   })}
@@ -1027,11 +1036,16 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
               {selectedDateStr ? (
                 <div id="turnos-disponibles" className="pt-4 border-t border-white/15 animate-in fade-in slide-in-from-top-4 duration-300 space-y-4 scroll-mt-16">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Clock className="w-5 h-5 text-[#F2C700]" />
                       <h4 className="font-heading font-black text-base sm:text-lg text-white uppercase">
                         Turnos para el <span className="text-[#F2C700] capitalize">{selectedDateFormatted}</span>
                       </h4>
+                      {HOLIDAYS.includes(selectedDateStr) && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-[#F2C700]/20 text-[#F2C700] border border-[#F2C700]/40 uppercase tracking-wider">
+                          Turnos de fin de semana
+                        </span>
+                      )}
                     </div>
                     <span className="text-xs text-zinc-300 font-medium">
                       Sucursal: <strong className={selectedBranchId === 'calle-5' ? 'text-[#ED3078]' : 'text-[#1EB8BF]'}>{selectedBranch?.name}</strong>

@@ -149,7 +149,12 @@ export const TIME_SLOTS: TimeSlot[] = [
 ];
 
 export const HOLIDAYS: string[] = [
-  // Agregar feriados en formato 'YYYY-MM-DD' si se requiere
+  '2026-11-09', // 9/11/2026
+  '2026-11-11', // 11/11/2026
+  '2026-11-23', // 23/11/2026
+  '2026-12-07', // 7/12/2026
+  '2026-12-08', // 8/12/2026
+  '2026-12-25', // 25/12/2026
 ];
 
 export const ATTRACTIONS: AttractionItem[] = [

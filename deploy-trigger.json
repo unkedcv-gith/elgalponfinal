@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.1",
-  "updatedAt": "2026-09-29T14:05:00Z",
-  "summary": "Actualizaciones recientes: Formato de fecha de backup a DD-MM-AAAA y acceso protegido de administración con pulsación prolongada en logo"
+  "version": "1.0.2",
+  "updatedAt": "2026-09-29T20:43:00Z",
+  "summary": "Turnos de fin de semana configurados para fechas especiales (9/11/2026, 11/11/2026, 23/11/2026, 7/12/2026, 8/12/2026, 25/12/2026), formato backup DD-MM-AAAA y acceso admin con logo presionado."
 }
