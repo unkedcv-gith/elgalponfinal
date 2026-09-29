@@ -1,0 +1,2836 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Reservation, BlockedDate, Branch, AppUser, Inquiry, UserRole, CalendarBlock, CalendarBlockType } from '../types';
+import { 
+  getReservations, 
+  updateReservationStatus, 
+  deleteReservation, 
+  getBlockedDates, 
+  toggleBlockDate, 
+  getCalendarBlocks,
+  addCalendarBlock,
+  removeCalendarBlock,
+  MONTH_NAMES_ES,
+  addReservation, 
+  getBranches,
+  addBranch,
+  updateBranch,
+  deleteBranch,
+  getAppUsers,
+  addAppUser,
+  updateAppUser,
+  deleteAppUser,
+  getInquiries,
+  updateInquiryStatus,
+  getCurrentUser,
+  logoutUser,
+  generateWaiverWhatsAppMessage,
+  generateWaiverShareLink,
+  formatDateDDMMAAAA,
+  formatDateWithWeekday,
+  formatWhatsAppNumber,
+  syncWithRemoteFirestore,
+  listenToFirestoreBookings,
+  normalizeBranchId,
+  downloadBackupAsJSON,
+  getLastBackupDate,
+  getCustomBaseUrl,
+  setCustomBaseUrl,
+  getPricingSettings,
+  markReservationTermsSent,
+  isReservationExpired,
+  getRemainingReservationSeconds,
+  resetReservationExpiration,
+  isReservationCircuitCompleted,
+  unlockAppUser,
+  updateReservation
+} from '../services/storage';
+import { ViewWaiverDocumentModal } from './ViewWaiverDocumentModal';
+import { ApproveDepositModal } from './ApproveDepositModal';
+import { SendDepositRequestModal } from './SendDepositRequestModal';
+import { EditReservationModal } from './EditReservationModal';
+import { LiabilityWaiverFormModal } from './LiabilityWaiverFormModal';
+import { EditAppUserModal } from './EditAppUserModal';
+import { AdminPricingManager } from './AdminPricingManager';
+import { TIME_SLOTS, HOLIDAYS } from '../data/initialData';
+
+const getAvailableSlotsForDate = (dateStr: string) => {
+  if (!dateStr) return [];
+  const [year, month, day] = dateStr.split('-');
+  const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+  const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+  const isHoliday = HOLIDAYS.includes(dateStr);
+  
+  if (isWeekend || isHoliday) {
+    return TIME_SLOTS.filter(slot => slot.id.startsWith('turn_weekend_'));
+  } else {
+    return TIME_SLOTS.filter(slot => slot.id === 'turn_weekday_evening');
+  }
+};
+import logoBlanca from '../assets/images/marca_el_galpon_blanca.svg';
+import { 
+  Shield, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  Search, 
+  Trash2, 
+  MessageCircle, 
+  DollarSign, 
+  Lock, 
+  Plus, 
+  LogOut, 
+  FileText, 
+  Check,
+  Building2,
+  Users,
+  Crown,
+  Store,
+  MapPin,
+  Calendar as CalendarIcon,
+  Filter,
+  Phone,
+  Mail,
+  User,
+  RefreshCw,
+  ChevronDown,
+  Power,
+  UserCheck,
+  UserX,
+  CreditCard,
+  Send,
+  ExternalLink,
+  Edit2,
+  ChevronLeft,
+  ChevronRight,
+  CalendarRange,
+  AlertTriangle,
+  AlertOctagon,
+  Unlock,
+  LayoutGrid,
+  Columns,
+  SlidersHorizontal,
+  BadgeCheck,
+  Download,
+  Database,
+  Globe,
+  Tag
+} from 'lucide-react';
+
+interface AdminDashboardProps {
+  onCloseAdmin: () => void;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) => {
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => getCurrentUser());
+  
+  // Data states
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
+
+  // Navigation & Filter states
+  const [activeTab, setActiveTab] = useState<'reservas' | 'consultas' | 'bloqueo' | 'nueva' | 'sucursales' | 'usuarios' | 'backup' | 'precios'>('reservas');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('todos');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // 2-Column layout
+  const [viewColumns, setViewColumns] = useState<'2col' | '1col'>('2col');
+
+  // Block date form state
+  const [calendarBlocks, setCalendarBlocks] = useState<CalendarBlock[]>([]);
+  const [blockType, setBlockType] = useState<CalendarBlockType>('single_day');
+  const [blockDateStr, setBlockDateStr] = useState(new Date().toISOString().split('T')[0]);
+  const [blockStartDate, setBlockStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [blockEndDate, setBlockEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [blockYear, setBlockYear] = useState<number>(new Date().getFullYear());
+  const [blockMonthIndex, setBlockMonthIndex] = useState<number>(new Date().getMonth());
+  const [blockReason, setBlockReason] = useState('Evento Privado / Mantenimiento');
+  const [blockBranchId, setBlockBranchId] = useState<string>('all');
+
+  // Manual reservation state
+  const [manualBranchId, setManualBranchId] = useState<string>('calle-5');
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualSlot, setManualSlot] = useState('turn_afternoon_1');
+  const [manualParent, setManualParent] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualChild, setManualChild] = useState('');
+  const [manualAge, setManualAge] = useState(6);
+  const [manualKids, setManualKids] = useState(20);
+  const [manualNotes, setManualNotes] = useState('');
+  const [manualTermsAndDepositApproved, setManualTermsAndDepositApproved] = useState(false);
+
+  const handleManualDateChange = (newDateStr: string) => {
+    setManualDate(newDateStr);
+    const available = getAvailableSlotsForDate(newDateStr);
+    if (available.length > 0 && !available.some(s => s.id === manualSlot)) {
+      setManualSlot(available[0].id);
+    }
+  };
+
+  // SuperAdmin: New Branch Form State
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchAddress, setNewBranchAddress] = useState('');
+  const [newBranchCity, setNewBranchCity] = useState('La Plata');
+  const [newBranchPhone, setNewBranchPhone] = useState('');
+  const [newBranchWhatsapp, setNewBranchWhatsapp] = useState('');
+  const [newBranchFranName, setNewBranchFranName] = useState('');
+  const [isAddingBranch, setIsAddingBranch] = useState(false);
+
+  // SuperAdmin: New User Form State
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserUsername, setNewUserUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('franquista');
+  const [newUserBranchId, setNewUserBranchId] = useState('');
+  const [isAddingUser, setIsAddingUser] = useState(false);
+
+  // Waiver, Edit & Delete Modals
+  const [waiverDocReservation, setWaiverDocReservation] = useState<Reservation | null>(null);
+  const [approvalNoticeReservation, setApprovalNoticeReservation] = useState<Reservation | null>(null);
+  const [sendDepositModalReservation, setSendDepositModalReservation] = useState<Reservation | null>(null);
+  const [directSignReservation, setDirectSignReservation] = useState<Reservation | null>(null);
+  const [reservationToEdit, setReservationToEdit] = useState<Reservation | null>(null);
+  const [reservationToDelete, setReservationToDelete] = useState<Reservation | null>(null);
+  const [appUserToEdit, setAppUserToEdit] = useState<AppUser | null>(null);
+
+  // Time Navigation & Filter - Default to 'all' so reservations are immediately visible
+  const [timeFilterMode, setTimeFilterMode] = useState<'weekly' | 'monthly' | 'all'>('all');
+  const [currentWeekOffset, setCurrentWeekOffset] = useState<number>(0);
+  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string>('Sincronizado');
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(getLastBackupDate());
+  const [backupSuccessMsg, setBackupSuccessMsg] = useState(false);
+  const [isUrlConfigModalOpen, setIsUrlConfigModalOpen] = useState(false);
+  const [customUrlInput, setCustomUrlInput] = useState<string>(() => getCustomBaseUrl());
+  const [adminTimerTick, setAdminTimerTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAdminTimerTick((t) => t + 1);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = () => {
+    const loadedBranches = getBranches();
+    setBranches(loadedBranches);
+    setReservations(getReservations());
+    setInquiries(getInquiries());
+    setBlockedDates(getBlockedDates());
+    setCalendarBlocks(getCalendarBlocks());
+    setAppUsers(getAppUsers());
+
+    const user = getCurrentUser();
+    setCurrentUser(user);
+    if (user && user.role === 'franquista' && user.assignedBranchId) {
+      setSelectedBranchFilter(user.assignedBranchId);
+      setManualBranchId(user.assignedBranchId);
+      setBlockBranchId(user.assignedBranchId);
+    } else if (loadedBranches.length > 0) {
+      setManualBranchId(loadedBranches[0].id);
+    }
+  };
+
+  const handleSyncFirestore = async () => {
+    setIsSyncingFirebase(true);
+    setSyncStatusMsg('Sincronizando...');
+    try {
+      await syncWithRemoteFirestore();
+      loadData();
+      setSyncStatusMsg(`Actualizado ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+    } catch (e) {
+      console.warn('Sync notice:', e);
+      setSyncStatusMsg('Error de red');
+    } finally {
+      setIsSyncingFirebase(false);
+    }
+  };
+
+  const handleBackupDownload = () => {
+    downloadBackupAsJSON();
+    setLastBackupTime(new Date().toISOString());
+    setBackupSuccessMsg(true);
+    setTimeout(() => setBackupSuccessMsg(false), 5000);
+  };
+
+  useEffect(() => {
+    loadData();
+    handleSyncFirestore();
+
+    // Listen to real-time updates from Firestore bookings
+    const unsubFirestore = listenToFirestoreBookings((updated) => {
+      setReservations(updated);
+      setSyncStatusMsg(`En Vivo ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+    });
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    const handleStorageUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('storageUpdate', handleStorageUpdate);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('storageUpdate', handleStorageUpdate);
+      if (unsubFirestore) unsubFirestore();
+    };
+  }, []);
+
+  // 10-Minute Admin Inactivity Auto-Logout
+  const [remainingInactiveSeconds, setRemainingInactiveSeconds] = useState(600);
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+
+  useEffect(() => {
+    let lastActivity = Date.now();
+
+    const resetActivityTimer = () => {
+      lastActivity = Date.now();
+      setShowInactivityWarning(false);
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach((ev) => window.addEventListener(ev, resetActivityTimer, { passive: true }));
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastActivity;
+      const remaining = Math.max(0, Math.ceil((10 * 60 * 1000 - elapsed) / 1000));
+      setRemainingInactiveSeconds(remaining);
+
+      if (remaining <= 60 && remaining > 0) {
+        setShowInactivityWarning(true);
+      } else if (remaining > 60) {
+        setShowInactivityWarning(false);
+      }
+
+      if (elapsed >= 10 * 60 * 1000) {
+        clearInterval(interval);
+        activityEvents.forEach((ev) => window.removeEventListener(ev, resetActivityTimer));
+        logoutUser();
+        alert('Tu sesión administrativa ha finalizado automáticamente por inactividad (10 minutos). Por motivos de seguridad se ha cerrado la sesión.');
+        onCloseAdmin();
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      activityEvents.forEach((ev) => window.removeEventListener(ev, resetActivityTimer));
+    };
+  }, [onCloseAdmin]);
+
+  const handleLogout = () => {
+    logoutUser();
+    onCloseAdmin();
+  };
+
+  const handleUnlockUser = async (uid: string, name: string) => {
+    await unlockAppUser(uid);
+    loadData();
+  };
+
+  // Role permissions helpers - Both Dueño General (admin) and superadmin have full access
+  const isSuperAdminOnly = currentUser?.role === 'superadmin';
+  const isAdmin = currentUser?.role === 'admin' || isSuperAdminOnly || !currentUser;
+  const isSuperAdmin = isAdmin; // Grants Backups, Franquicias, and User control to Dueño General
+  const isFranquista = currentUser?.role === 'franquista';
+
+  // Weekly Date Range (Monday to Sunday)
+  const currentWeekRange = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday + currentWeekOffset * 7);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    const formatYMD = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dayStr}`;
+    };
+
+    const startStr = formatYMD(monday);
+    const endStr = formatYMD(sunday);
+
+    return {
+      monday,
+      sunday,
+      startStr,
+      endStr,
+      label: `${formatDateDDMMAAAA(startStr)} al ${formatDateDDMMAAAA(endStr)}`,
+    };
+  }, [currentWeekOffset]);
+
+  // Available unique months list
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    reservations.forEach((r) => {
+      if (r.date && r.date.length >= 7) {
+        monthsSet.add(r.date.substring(0, 7));
+      }
+    });
+    return Array.from(monthsSet).sort().reverse();
+  }, [reservations]);
+
+  const formatMonthLabel = (monthKey: string) => {
+    if (monthKey === 'all') return 'Todos los Meses';
+    const [y, m] = monthKey.split('-');
+    const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+    return d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  };
+
+  // Filtered reservations list
+  const filteredReservations = useMemo(() => {
+    return reservations.filter((r) => {
+      const rBranch = normalizeBranchId(r.branchId);
+
+      if (isFranquista && currentUser?.assignedBranchId) {
+        const uBranch = normalizeBranchId(currentUser.assignedBranchId);
+        if (rBranch !== uBranch) return false;
+      } else if (selectedBranchFilter !== 'all') {
+        const fBranch = normalizeBranchId(selectedBranchFilter);
+        if (rBranch !== fBranch) return false;
+      }
+
+      // Time Filter Mode
+      if (timeFilterMode === 'weekly') {
+        if (r.date < currentWeekRange.startStr || r.date > currentWeekRange.endStr) {
+          return false;
+        }
+      } else if (timeFilterMode === 'monthly') {
+        if (selectedMonthFilter !== 'all' && !r.date.startsWith(selectedMonthFilter)) {
+          return false;
+        }
+      }
+
+      if (filterStatus !== 'todos') {
+        if (r.status !== filterStatus) return false;
+      }
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matches =
+          r.parentName.toLowerCase().includes(q) ||
+          r.childName.toLowerCase().includes(q) ||
+          r.parentPhone.toLowerCase().includes(q) ||
+          r.branchName.toLowerCase().includes(q) ||
+          r.date.includes(q);
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [
+    reservations,
+    isFranquista,
+    currentUser,
+    selectedBranchFilter,
+    timeFilterMode,
+    currentWeekRange,
+    selectedMonthFilter,
+    filterStatus,
+    searchQuery,
+  ]);
+
+  // Pagination calculation (maximum 8 cards per page)
+  const RESERVATIONS_PER_PAGE = 8;
+  const totalPages = Math.ceil(filteredReservations.length / RESERVATIONS_PER_PAGE) || 1;
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedReservations = useMemo(() => {
+    const startIndex = (validPage - 1) * RESERVATIONS_PER_PAGE;
+    return filteredReservations.slice(startIndex, startIndex + RESERVATIONS_PER_PAGE);
+  }, [filteredReservations, validPage]);
+
+  // Reset pagination to page 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, selectedBranchFilter, timeFilterMode, currentWeekOffset, selectedMonthFilter, searchQuery]);
+
+  // Filtered inquiries list
+  const filteredInquiries = useMemo(() => {
+    return inquiries.filter((inq) => {
+      const inqBranch = normalizeBranchId(inq.branchId);
+
+      if (isFranquista && currentUser?.assignedBranchId) {
+        const uBranch = normalizeBranchId(currentUser.assignedBranchId);
+        return inqBranch === uBranch;
+      }
+      if (selectedBranchFilter !== 'all') {
+        const fBranch = normalizeBranchId(selectedBranchFilter);
+        return inqBranch === fBranch;
+      }
+      return true;
+    });
+  }, [inquiries, isFranquista, currentUser, selectedBranchFilter]);
+
+  // Status management
+  const handleUpdateStatus = async (id: string, status: Reservation['status']) => {
+    const updated = await updateReservationStatus(id, status, status === 'approved');
+    setReservations(updated);
+
+    if (status === 'approved') {
+      const target = updated.find((r) => r.id === id);
+      if (target) {
+        setApprovalNoticeReservation(target);
+      }
+    }
+  };
+
+  // Direct toggle for "Términos, condiciones y seña aprobados"
+  const handleToggleTermsAndDepositDirect = async (id: string, approved: boolean) => {
+    const target = reservations.find((r) => r.id === id);
+    if (!target) return;
+
+    const updatedFields: Partial<Reservation> = {
+      termsAndDepositApproved: approved,
+      termsApprovedAt: approved ? new Date().toISOString() : undefined,
+      depositPaid: approved,
+      depositAmount: approved ? (target.depositAmount || 100000) : target.depositAmount,
+      status: approved ? 'approved' : 'pending',
+      waiverStatus: approved ? 'signed' : 'pending',
+    };
+
+    const updated = await updateReservation(id, updatedFields);
+    setReservations(updated);
+
+    if (approved) {
+      const updatedTarget = updated.find((r) => r.id === id);
+      if (updatedTarget) {
+        setApprovalNoticeReservation(updatedTarget);
+      }
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const updated = await deleteReservation(id);
+    setReservations(updated);
+  };
+
+  const handleToggleBlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = toggleBlockDate(blockDateStr, blockReason, blockBranchId);
+    setBlockedDates(updated);
+    setCalendarBlocks(getCalendarBlocks());
+  };
+
+  const handleCreateCalendarBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await addCalendarBlock({
+      type: blockType,
+      branchId: blockBranchId,
+      reason: blockReason,
+      date: blockType === 'single_day' ? blockDateStr : undefined,
+      startDate: blockType === 'date_range' ? blockStartDate : undefined,
+      endDate: blockType === 'date_range' ? blockEndDate : undefined,
+      year: (blockType === 'full_month' || blockType === 'full_year') ? blockYear : undefined,
+      monthIndex: blockType === 'full_month' ? blockMonthIndex : undefined,
+    });
+    setCalendarBlocks(getCalendarBlocks());
+    setBlockedDates(getBlockedDates());
+    setBlockReason('Evento Privado / Mantenimiento');
+  };
+
+  const handleRemoveCalendarBlock = async (id: string) => {
+    await removeCalendarBlock(id);
+    setCalendarBlocks(getCalendarBlocks());
+    setBlockedDates(getBlockedDates());
+  };
+
+  const handleCreateManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualParent || !manualChild) {
+      alert('Por favor completá Nombre del Adulto y Nombre del Cumpleañer@.');
+      return;
+    }
+    const slotObj = TIME_SLOTS.find(s => s.id === manualSlot);
+    const branchObj = branches.find(b => b.id === manualBranchId);
+
+    await addReservation({
+      branchId: manualBranchId,
+      branchName: branchObj?.name || 'El Galpón',
+      date: manualDate,
+      slotId: manualSlot,
+      slotTime: slotObj?.timeRange || '15:00 a 17:30 hs',
+      parentName: manualParent,
+      parentPhone: manualPhone,
+      parentEmail: '',
+      childName: manualChild,
+      childAge: manualAge,
+      estimatedKids: manualKids,
+      additionalPackage: manualKids <= 20 ? 'base_20' : manualKids <= 28 ? 'adicional_21_28' : 'adicional_29_35',
+      status: manualTermsAndDepositApproved ? 'approved' : 'pending',
+      depositPaid: manualTermsAndDepositApproved,
+      depositAmount: manualTermsAndDepositApproved ? 100000 : 0,
+      termsAndDepositApproved: manualTermsAndDepositApproved,
+      termsApprovedAt: manualTermsAndDepositApproved ? new Date().toISOString() : undefined,
+      waiverStatus: manualTermsAndDepositApproved ? 'signed' : 'pending',
+      notes: `[Carga Manual por ${currentUser?.displayName || 'Admin'}] ${manualNotes}`,
+      createdByRole: currentUser?.role,
+    });
+
+    loadData();
+    setActiveTab('reservas');
+    setManualParent('');
+    setManualPhone('');
+    setManualChild('');
+    setManualNotes('');
+    setManualTermsAndDepositApproved(false);
+  };
+
+  // SuperAdmin: Add new branch
+  const handleAddBranchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBranchName || !newBranchAddress) return;
+
+    await addBranch({
+      name: newBranchName,
+      address: newBranchAddress,
+      city: newBranchCity,
+      phone: newBranchPhone || '221 500-0000',
+      whatsappNumber: newBranchWhatsapp ? newBranchWhatsapp.replace(/\D/g, '') : '5492215000000',
+      franquistaName: newBranchFranName,
+      isActive: true,
+      color: '#F2C700',
+    });
+
+    setNewBranchName('');
+    setNewBranchAddress('');
+    setNewBranchPhone('');
+    setNewBranchWhatsapp('');
+    setNewBranchFranName('');
+    setIsAddingBranch(false);
+    loadData();
+  };
+
+  // SuperAdmin: Toggle branch status
+  const handleToggleBranchActive = async (branchId: string, currentStatus: boolean) => {
+    await updateBranch(branchId, { isActive: !currentStatus });
+    loadData();
+  };
+
+  // SuperAdmin: Toggle user active/paused status
+  const handleToggleUserActive = async (uid: string, currentStatus: boolean) => {
+    if (uid === currentUser?.uid) {
+      alert('No podés pausar tu propio usuario en sesión.');
+      return;
+    }
+    await updateAppUser(uid, { isActive: !currentStatus });
+    loadData();
+  };
+
+  // SuperAdmin: Add new user
+  const handleAddUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserName || !newUserUsername) return;
+
+    const assignedBranch = branches.find(b => b.id === newUserBranchId);
+
+    await addAppUser({
+      displayName: newUserName,
+      username: newUserUsername.toLowerCase().trim(),
+      email: newUserEmail || `${newUserUsername.toLowerCase().trim()}@elgalpon.com`,
+      password: newUserPassword.trim() || undefined,
+      role: newUserRole,
+      assignedBranchId: newUserRole === 'franquista' ? newUserBranchId : undefined,
+      assignedBranchName: newUserRole === 'franquista' ? assignedBranch?.name : undefined,
+      isActive: true,
+    });
+
+    setNewUserName('');
+    setNewUserUsername('');
+    setNewUserEmail('');
+    setNewUserPassword('');
+    setIsAddingUser(false);
+    loadData();
+  };
+
+  const handleSaveAppUser = async (updatedFields: Partial<AppUser>) => {
+    if (appUserToEdit) {
+      await updateAppUser(appUserToEdit.uid, updatedFields);
+      setAppUserToEdit(null);
+      loadData();
+    }
+  };
+
+  // Analytics Metrics
+  const totalInFilter = filteredReservations.length;
+  const approvedInFilter = filteredReservations.filter((r) => r.status === 'approved').length;
+  const pendingInFilter = filteredReservations.filter((r) => r.status === 'pending').length;
+  const totalRevenueDeposits = filteredReservations
+    .filter((r) => r.status === 'approved' && r.depositPaid)
+    .reduce((sum, r) => sum + (r.depositAmount || getPricingSettings().birthdays.depositAmount), 0);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950 text-white overflow-y-auto">
+      
+      {/* 10-Minute Inactivity Warning Alert Bar */}
+      {showInactivityWarning && (
+        <div className="bg-rose-600 text-white sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between shadow-2xl border-b-2 border-rose-700 animate-pulse">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+            <Clock className="w-4 h-4 text-white shrink-0" />
+            <span>
+              AVISO DE INACTIVIDAD: Tu sesión se cerrará en{' '}
+              <strong className="font-mono text-base underline text-amber-200">{remainingInactiveSeconds}s</strong>{' '}
+              por falta de actividad.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowInactivityWarning(false);
+            }}
+            className="px-3 py-1 bg-white hover:bg-zinc-100 text-rose-700 font-black text-xs uppercase rounded-xl transition-all cursor-pointer shadow-md shrink-0"
+          >
+            Permanecer Conectado
+          </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TOP ADMIN HEADER BAR                                                      */}
+      {/* ========================================================================= */}
+      <div className="bg-black border-b-2 border-zinc-800 sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        {/* Brand & User Role Badge */}
+        <div className="flex items-center gap-3">
+          <img src={logoBlanca} alt="El Galpón" className="h-9 w-auto object-contain" />
+          
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-heading font-black text-base sm:text-lg text-white uppercase flex items-center gap-2">
+                Panel Central
+              </h1>
+
+              {/* Dynamic Role Badge */}
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase flex items-center gap-1 ${
+                isSuperAdminOnly 
+                  ? 'bg-[#ED3078] text-white shadow-[0_0_12px_rgba(237,48,120,0.5)]'
+                  : isAdmin 
+                  ? 'bg-[#F2C700] text-black shadow-[0_0_12px_rgba(242,199,0,0.4)]'
+                  : 'bg-[#1EB8BF] text-black shadow-[0_0_12px_rgba(30,184,191,0.4)]'
+              }`}>
+                {isSuperAdminOnly ? <Crown className="w-3 h-3" /> : isAdmin ? <Building2 className="w-3 h-3" /> : <Store className="w-3 h-3" />}
+                <span>{currentUser?.displayName || (isSuperAdminOnly ? 'SuperAdmin' : isAdmin ? 'Admin Dueño' : 'Franquista')}</span>
+              </span>
+            </div>
+            
+            <p className="text-[11px] text-zinc-400 font-medium">
+              {isSuperAdmin 
+                ? 'Control total multi-sucursal, control de usuarios y habilitaciones.'
+                : isAdmin
+                ? 'Supervisión general de todas las franquicias y reservas del negocio.'
+                : `Gestión exclusiva de la sucursal: ${currentUser?.assignedBranchName || 'Asignada'}`}
+            </p>
+          </div>
+        </div>
+
+        {/* Branch Switcher & Quick Actions */}
+        <div className="flex items-center gap-2 self-start sm:self-end md:self-auto flex-wrap w-full md:w-auto justify-between sm:justify-end">
+          
+          {/* Realtime Firebase Sync Badge & Button */}
+          <button
+            type="button"
+            onClick={handleSyncFirestore}
+            disabled={isSyncingFirebase}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 hover:text-white transition-all cursor-pointer shadow-sm min-h-[38px]"
+            title="Sincronizar manualmente con la base de datos de Firebase"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingFirebase ? 'animate-spin text-amber-400' : ''}`} />
+            <span className="font-bold text-[11px] uppercase tracking-wider">{syncStatusMsg}</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs min-h-[38px]">
+            <MapPin className="w-3.5 h-3.5 text-[#1EB8BF] shrink-0" />
+            {isFranquista ? (
+              <span className="font-black text-white">{currentUser?.assignedBranchName || 'Mi Sucursal'}</span>
+            ) : (
+              <select
+                value={selectedBranchFilter}
+                onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                className="bg-transparent text-white font-black text-xs uppercase focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-zinc-900 text-white">Todas las Sucursales</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-zinc-900 text-white">
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <button
+            onClick={onCloseAdmin}
+            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-black text-white uppercase transition-colors cursor-pointer min-h-[38px] flex items-center justify-center"
+          >
+            Volver a la Web
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="p-2.5 rounded-xl bg-zinc-900 hover:bg-[#ED3078]/20 text-zinc-300 hover:text-[#ED3078] border border-zinc-700 transition-colors cursor-pointer min-h-[38px] flex items-center justify-center"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MAIN ADMIN BODY                                                           */}
+      {/* ========================================================================= */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* CLEAN RESPONSIVE SEGMENTED BUTTON GRID (NO HORIZONTAL SCROLL) */}
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-center gap-2">
+            
+            <button
+              onClick={() => setActiveTab('reservas')}
+              className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                activeTab === 'reservas'
+                  ? 'bg-[#1EB8BF] text-black shadow-md'
+                  : 'bg-black/40 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              <CalendarIcon className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Reservas</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-black/20 text-current shrink-0">
+                {filteredReservations.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('consultas')}
+              className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                activeTab === 'consultas'
+                  ? 'bg-[#F2C700] text-black shadow-md'
+                  : 'bg-black/40 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Consultas</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-black/20 text-current shrink-0">
+                {filteredInquiries.length}
+              </span>
+            </button>
+
+            {/* BLOQUEOS: Visible for admin and franquista */}
+            <button
+              onClick={() => setActiveTab('bloqueo')}
+              className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                activeTab === 'bloqueo'
+                  ? 'bg-[#ED3078] text-white shadow-md'
+                  : 'bg-black/40 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              <Lock className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Bloqueos</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('nueva')}
+              className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                activeTab === 'nueva'
+                  ? 'bg-[#A3BA13] text-black shadow-md'
+                  : 'bg-black/40 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Carga Manual</span>
+            </button>
+
+            {/* SUPERADMIN / ADMIN BUTTONS */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('sucursales')}
+                className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                  activeTab === 'sucursales'
+                    ? 'bg-[#ED3078] text-white shadow-md'
+                    : 'bg-black/40 border border-[#ED3078]/40 text-[#ED3078] hover:bg-[#ED3078]/10'
+                }`}
+              >
+                <Store className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Franquicias</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/20 text-white shrink-0">
+                  {branches.length}
+                </span>
+              </button>
+            )}
+
+            {/* SUPERADMIN ONLY BUTTONS */}
+            {isSuperAdminOnly && (
+              <>
+                <button
+                  onClick={() => setActiveTab('usuarios')}
+                  className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                    activeTab === 'usuarios'
+                      ? 'bg-[#F2C700] text-black shadow-md'
+                      : 'bg-black/40 border border-[#F2C700]/40 text-[#F2C700] hover:bg-[#F2C700]/10'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Usuarios</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('precios')}
+                  className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                    activeTab === 'precios'
+                      ? 'bg-[#A3BA13] text-black shadow-md'
+                      : 'bg-black/40 border border-[#A3BA13]/40 text-[#A3BA13] hover:bg-[#A3BA13]/10'
+                  }`}
+                  title="Gestión de Precios y Aranceles"
+                >
+                  <Tag className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Precios</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('backup')}
+                  className={`px-3.5 py-2.5 min-h-[44px] rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.98] lg:flex-1 min-w-[135px] whitespace-nowrap ${
+                    activeTab === 'backup'
+                      ? 'bg-emerald-400 text-black shadow-md'
+                      : 'bg-black/40 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
+                  }`}
+                  title="Copias de Seguridad y Backups de Base de Datos"
+                >
+                  <Database className="w-4 h-4 shrink-0" />
+                  <span className="whitespace-nowrap">Backups</span>
+                </button>
+              </>
+            )}
+
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* TAB 1: RESERVAS & HISTORIAL SEMANAL / MENSUAL                             */}
+        {/* ========================================================================= */}
+        {activeTab === 'reservas' && (
+          <div className="space-y-6">
+
+            {/* ===================================================================== */}
+            {/* 1. MÓDULO DE GESTIÓN & CONTROL (DECK ADMINISTRATIVO)                  */}
+            {/* Visualmente enmarcado con fondo Obsidian oscuro y borde estructurado   */}
+            {/* ===================================================================== */}
+            <div className="bg-[#0e1117] border-2 border-zinc-700/90 rounded-3xl p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden ring-1 ring-white/5">
+              
+              {/* Accent top gradient bar */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-[#1EB8BF] to-[#ED3078]" />
+
+              {/* Module Header Bar */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+                
+                {/* Title & Active Filter Subtitle */}
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-400">
+                      <SlidersHorizontal className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-heading font-black text-base sm:text-lg text-white uppercase tracking-wide">
+                          Módulo de Gestión de Fichas
+                        </h2>
+                        <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400">
+                          Panel de Control
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        Visualizando:{' '}
+                        <strong className="text-[#1EB8BF]">
+                          {timeFilterMode === 'weekly'
+                            ? `Semana del ${currentWeekRange.label}`
+                            : timeFilterMode === 'monthly'
+                            ? `Mes: ${formatMonthLabel(selectedMonthFilter)}`
+                            : 'Histórico Completo (Todas)'}
+                        </strong>
+                        {selectedBranchFilter !== 'all' && ` • ${branches.find(b => b.id === selectedBranchFilter)?.name}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Module Quick Actions: View Selector & Column Toggle */}
+                <div className="flex flex-wrap items-center gap-2.5">
+
+                  {/* 1 Col / 2 Cols Grid Switcher (Desktop / Tablet only) */}
+                  <div className="hidden sm:inline-flex p-1 rounded-2xl bg-black border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setViewColumns('2col')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                        viewColumns === '2col'
+                          ? 'bg-[#1EB8BF] text-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                      title="Ver fichas a 2 columnas"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>2 Cols</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewColumns('1col')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                        viewColumns === '1col'
+                          ? 'bg-[#1EB8BF] text-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                      title="Ver fichas a 1 columna completa"
+                    >
+                      <Columns className="w-3.5 h-3.5" />
+                      <span>1 Col</span>
+                    </button>
+                  </div>
+
+                  {/* View Mode Selector (Semanal / Mensual / Todas) */}
+                  <div className="inline-flex p-1 rounded-2xl bg-black border border-zinc-800 w-full sm:w-auto justify-around sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => setTimeFilterMode('weekly')}
+                      className={`flex-1 sm:flex-initial px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-black uppercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        timeFilterMode === 'weekly'
+                          ? 'bg-amber-400 text-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Semanal</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTimeFilterMode('monthly')}
+                      className={`flex-1 sm:flex-initial px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-black uppercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        timeFilterMode === 'monthly'
+                          ? 'bg-amber-400 text-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      <span>Mensual</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTimeFilterMode('all')}
+                      className={`flex-1 sm:flex-initial px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-black uppercase transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        timeFilterMode === 'all'
+                          ? 'bg-amber-400 text-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Filter className="w-3.5 h-3.5" />
+                      <span>Todas</span>
+                    </button>
+                  </div>
+
+                  {isSuperAdminOnly && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomUrlInput(getCustomBaseUrl());
+                          setIsUrlConfigModalOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 rounded-2xl bg-zinc-900 hover:bg-[#1EB8BF]/20 border border-[#1EB8BF]/40 text-[#1EB8BF] text-xs font-heading font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        title="Configurar el dominio o enlace que se envía a los clientes por WhatsApp"
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        <span>Link WhatsApp</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleBackupDownload}
+                        className="px-3.5 py-1.5 rounded-2xl bg-zinc-900 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-heading font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        title="Descargar copia de seguridad de la base de datos en formato JSON"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Backup JSON</span>
+                      </button>
+                    </>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* Weekly Navigation Controls */}
+              {timeFilterMode === 'weekly' && (
+                <div className="bg-black/70 border border-zinc-800 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentWeekOffset(prev => prev - 1)}
+                      className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-black uppercase flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Semana Anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Anterior</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentWeekOffset(0)}
+                      className={`px-3 py-2 rounded-xl text-xs font-black uppercase cursor-pointer transition-colors ${
+                        currentWeekOffset === 0
+                          ? 'bg-white text-black'
+                          : 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                      title="Ir a Semana Actual"
+                    >
+                      Esta Semana
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentWeekOffset(prev => prev + 1)}
+                      className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-black uppercase flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Semana Siguiente"
+                    >
+                      <span>Siguiente</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-zinc-400 font-bold">Rango de Fichas:</span>
+                    <span className="px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-black">
+                      📅 {currentWeekRange.label}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly Dropdown Filter */}
+              {timeFilterMode === 'monthly' && (
+                <div className="bg-black/70 border border-zinc-800 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span className="text-xs text-zinc-400 font-bold">Seleccionar mes para filtrar fichas:</span>
+                  <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5">
+                    <CalendarIcon className="w-4 h-4 text-amber-400" />
+                    <select
+                      value={selectedMonthFilter}
+                      onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                      className="bg-transparent text-white font-black text-xs uppercase focus:outline-none cursor-pointer"
+                    >
+                      <option value="all" className="bg-zinc-900 text-white">Todos los Meses</option>
+                      {availableMonths.map((monthKey) => (
+                        <option key={monthKey} value={monthKey} className="bg-zinc-900 text-white">
+                          {formatMonthLabel(monthKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Metric Cards Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-black/70 border border-zinc-800/90 rounded-2xl p-4 space-y-1">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase block">Total Fichas</span>
+                  <div className="font-heading font-black text-2xl text-white flex items-center justify-between">
+                    <span>{totalInFilter}</span>
+                    <CalendarIcon className="w-5 h-5 text-[#1EB8BF]" />
+                  </div>
+                </div>
+
+                <div className="bg-black/70 border border-zinc-800/90 rounded-2xl p-4 space-y-1">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase block">Reservas Confirmadas</span>
+                  <div className="font-heading font-black text-2xl text-emerald-400 flex items-center justify-between">
+                    <span>{approvedInFilter}</span>
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-black/70 border border-zinc-800/90 rounded-2xl p-4 space-y-1">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase block">Reservas Pendientes</span>
+                  <div className="font-heading font-black text-2xl text-amber-400 flex items-center justify-between">
+                    <span>{pendingInFilter}</span>
+                    <Clock className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-black/70 border border-zinc-800/90 rounded-2xl p-4 space-y-1">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase block">Señas Recaudadas</span>
+                  <div className="font-heading font-black text-2xl text-amber-400 flex items-center justify-between">
+                    <span>${totalRevenueDeposits.toLocaleString('es-AR')}</span>
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* SEARCH & STATUS FILTER BAR */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/80 border border-zinc-800 rounded-2xl p-3 sm:p-3.5">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por niño, adulto, celular..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:border-[#1EB8BF] focus:outline-none min-h-[40px]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                  {['todos', 'pending', 'approved', 'rejected'].map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setFilterStatus(status)}
+                      className={`flex-1 sm:flex-initial px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-black uppercase transition-all cursor-pointer whitespace-nowrap text-center shrink-0 ${
+                        filterStatus === status
+                          ? 'bg-white text-black font-black shadow-sm'
+                          : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {status === 'todos' ? 'Todos' : status === 'pending' ? 'Pendientes' : status === 'approved' ? 'Aprobadas' : 'Rechazadas'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* ===================================================================== */}
+            {/* 2. FICHAS DE RESERVA EN SÍ (CARDS A 2 COLUMNAS O 1 COLUMNA)           */}
+            {/* Indicador de estado superior asociado a DATOS/REQUISITOS FALTANTES    */}
+            {/* ===================================================================== */}
+            {filteredReservations.length === 0 ? (
+              <div className="bg-[#141721] border border-zinc-800 rounded-3xl p-10 text-center space-y-4">
+                <CalendarIcon className="w-10 h-10 text-zinc-500 mx-auto" />
+                <h3 className="font-heading font-black text-lg text-white uppercase">
+                  {reservations.length > 0 ? 'No hay fichas con los filtros actuales' : 'No hay reservas registradas aún'}
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  {reservations.length > 0 ? (
+                    <>
+                      Existen <strong className="text-amber-400">{reservations.length} reserva(s)</strong> en la base de datos de Firebase, pero están ocultas por los filtros activos (
+                      {timeFilterMode === 'weekly' ? 'Semanal' : timeFilterMode === 'monthly' ? 'Mensual' : ''}
+                      {selectedBranchFilter !== 'all' ? ` / Sucursal: ${selectedBranchFilter}` : ''}
+                      {filterStatus !== 'todos' ? ` / Estado: ${filterStatus}` : ''}
+                      ).
+                    </>
+                  ) : (
+                    'No se encontró ninguna reserva en el sistema. Podés sincronizar con la nube o crear una nueva ficha manualmente.'
+                  )}
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {reservations.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimeFilterMode('all');
+                        if (!isFranquista) setSelectedBranchFilter('all');
+                        setFilterStatus('todos');
+                        setSearchQuery('');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-heading font-black text-xs uppercase transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Filter className="w-4 h-4" />
+                      <span>Ver Todas las Reservas ({reservations.length})</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSyncFirestore}
+                    disabled={isSyncingFirebase}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs uppercase transition-colors inline-flex items-center gap-1.5 cursor-pointer border border-zinc-700"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingFirebase ? 'animate-spin' : ''}`} />
+                    <span>Sincronizar con Firebase</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className={`grid grid-cols-1 ${viewColumns === '2col' ? 'md:grid-cols-2' : 'grid-cols-1'} gap-5 items-stretch`}>
+                  {paginatedReservations.map((res) => {
+                  const isApproved = res.status === 'approved';
+                  const isPending = res.status === 'pending';
+                  const isRejected = res.status === 'rejected';
+                  const isTermsAndDepositApproved = Boolean(
+                    res.termsAndDepositApproved || (isApproved && res.depositPaid)
+                  );
+                  const isWaiverSigned = res.liabilityWaiver?.status === 'signed' || res.waiverStatus === 'signed' || isTermsAndDepositApproved;
+                  const isCircuitComplete = isReservationCircuitCompleted(res) || isTermsAndDepositApproved;
+                  const isExpired = !isTermsAndDepositApproved && isReservationExpired(res);
+                  const remainingHoldSeconds = getRemainingReservationSeconds(res);
+
+                  // Calculate missing data / pending requirements
+                  const missingItems: string[] = [];
+                  if (!isWaiverSigned && !isRejected && !isTermsAndDepositApproved) missingItems.push('Aceptación T&C');
+                  if (!res.parentEmail && !isRejected) missingItems.push('Email de contacto');
+                  if (!res.adultsFoodInfo && !isRejected) missingItems.push('Menú adultos');
+
+                  // Readiness assessment
+                  const isFullyComplete = (isApproved && isWaiverSigned) || isTermsAndDepositApproved;
+                  const isCriticalMissing = isPending && !isWaiverSigned && !isTermsAndDepositApproved;
+
+                  // Top header color theme based on missing data status
+                  let topThemeClass = 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400';
+                  let topGlowClass = 'ring-emerald-500/20';
+                  let statusBadgeText = 'Ficha Completa (OK)';
+                  let statusBadgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+
+                  if (isRejected) {
+                    topThemeClass = 'bg-zinc-600';
+                    topGlowClass = 'ring-zinc-800';
+                    statusBadgeText = 'Reserva Cancelada';
+                    statusBadgeColor = 'bg-zinc-800 text-zinc-400 border-zinc-700';
+                  } else if (isExpired) {
+                    topThemeClass = 'bg-gradient-to-r from-rose-600 to-red-600';
+                    topGlowClass = 'ring-rose-600/20';
+                    statusBadgeText = 'Expirada (+40 min - Turno Libre)';
+                    statusBadgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+                  } else if (isCriticalMissing) {
+                    topThemeClass = 'bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500';
+                    topGlowClass = 'ring-rose-500/20';
+                    statusBadgeText = 'Falta Firma de T&C';
+                    statusBadgeColor = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+                  } else if (isPending) {
+                    topThemeClass = 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500';
+                    topGlowClass = 'ring-amber-500/20';
+                    statusBadgeText = 'Pendiente de Confirmación';
+                    statusBadgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+                  } else if (!isWaiverSigned) {
+                    topThemeClass = 'bg-gradient-to-r from-cyan-500 via-sky-400 to-[#1EB8BF]';
+                    topGlowClass = 'ring-cyan-500/20';
+                    statusBadgeText = 'Falta Aceptación de T&C';
+                    statusBadgeColor = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+                  } else if (!isFullyComplete) {
+                    topThemeClass = 'bg-gradient-to-r from-teal-400 via-emerald-400 to-teal-500';
+                    topGlowClass = 'ring-teal-500/20';
+                    statusBadgeText = 'Faltan Datos Menores';
+                    statusBadgeColor = 'bg-teal-500/20 text-teal-300 border-teal-500/40';
+                  }
+
+                  return (
+                    <div
+                      key={res.id}
+                      className={`bg-[#141722] border border-zinc-700/80 hover:border-zinc-500/90 rounded-2xl p-4.5 sm:p-5 pt-5 transition-all flex flex-col justify-between relative shadow-lg group hover:shadow-2xl overflow-hidden ring-1 ${topGlowClass}`}
+                    >
+                      {/* ACCENT TOP STATUS BAR (Indica visualmente el estado de datos faltantes en el borde superior) */}
+                      <div className={`absolute top-0 left-0 right-0 h-1.5 ${topThemeClass}`} />
+
+                      {/* CARD TOP ZONE: Date, Turno, Branch & Status Badges */}
+                      <div className="space-y-3.5">
+                        
+                        {/* Header: Date + Branch & Status on left, Edit Pencil button aligned at the top right with Date/Time */}
+                        <div className="flex items-start justify-between gap-2 border-b border-zinc-800/90 pb-3">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 h-8 rounded-xl bg-black/90 border border-zinc-700/80 text-white text-xs font-black shrink-0">
+                              <CalendarIcon className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="capitalize">{formatDateWithWeekday(res.date)}</span>
+                              <span className="text-zinc-600">•</span>
+                              <Clock className="w-3.5 h-3.5 text-[#1EB8BF]" />
+                              <span className="text-zinc-300 font-bold">{res.slotTime}</span>
+                            </div>
+
+                            <div className={`px-2.5 py-1 h-8 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 ${
+                              res.branchId === 'calle-5' || res.branchName?.toLowerCase().includes('5')
+                                ? 'bg-[#ED3078]/15 border border-[#ED3078]/40 text-[#ED3078]'
+                                : 'bg-[#1EB8BF]/15 border border-[#1EB8BF]/40 text-[#1EB8BF]'
+                            }`}>
+                              <MapPin className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate max-w-[120px] font-black">{res.branchName}</span>
+                            </div>
+
+                            {/* Missing-Data State Pill */}
+                            <span
+                              className={`px-2.5 py-1 h-8 rounded-xl text-[11px] font-black uppercase flex items-center gap-1.5 border transition-all shrink-0 ${statusBadgeColor}`}
+                            >
+                              {isFullyComplete ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              ) : isRejected ? (
+                                <AlertTriangle className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                              ) : (
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              <span>{statusBadgeText}</span>
+                            </span>
+                          </div>
+
+                          {/* Top-Right Pencil Edit Button (perfectly aligned with date & time) */}
+                          <button
+                            type="button"
+                            onClick={() => setReservationToEdit(res)}
+                            className="w-8 h-8 rounded-xl bg-zinc-800/90 hover:bg-amber-400 hover:text-black text-amber-400 border border-zinc-700 hover:border-amber-400 transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm self-start ml-1"
+                            title="Editar datos de la reserva"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 shrink-0" />
+                          </button>
+                        </div>
+
+                        {/* CARD BODY: Birthday Child Specs */}
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <h4 className="font-heading font-black text-lg text-white uppercase tracking-tight flex items-center gap-2">
+                              Cumple de <span className="text-amber-400">{res.childName}</span>
+                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-zinc-800 text-zinc-200 font-sans font-bold">
+                                {res.childAge} años
+                              </span>
+                            </h4>
+                          </div>
+
+                          {/* Customer Specs Box */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-zinc-300 bg-black/60 border border-zinc-800/80 rounded-xl p-3">
+                            <div className="flex items-center gap-2">
+                              <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                              <span className="truncate">Titular: <strong className="text-white">{res.parentName}</strong></span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-3.5 h-3.5 text-[#1EB8BF] shrink-0" />
+                              <span>Cel: <strong className="text-white font-mono">{res.parentPhone}</strong></span>
+                            </div>
+                            {(() => {
+                              const emailToShow = res.parentEmail || res.liabilityWaiver?.signerEmail;
+                              return emailToShow ? (
+                                <div className="flex items-center gap-2 sm:col-span-2">
+                                  <Mail className="w-3.5 h-3.5 text-[#1EB8BF] shrink-0" />
+                                  <span className="truncate text-zinc-300">
+                                    Email: <strong className="text-white font-medium">{emailToShow}</strong>
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 sm:col-span-2 text-amber-400/90">
+                                  <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span className="text-[11px] italic font-medium">Email no informado aún</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Requirements / Status checklist strip */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {/* Reservation Status Badge */}
+                            <span
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 border ${
+                                isApproved
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              }`}
+                            >
+                              {isApproved ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Clock className="w-3 h-3 text-rose-400" />}
+                              <span>{isApproved ? 'Reserva: CONFIRMADA' : 'Reserva: PENDIENTE'}</span>
+                            </span>
+
+                            {/* Terms & Conditions Acceptance Badge */}
+                            <span
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 border ${
+                                isWaiverSigned
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              }`}
+                            >
+                              {isWaiverSigned ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}
+                              <span>{isWaiverSigned ? 'Términos: ACEPTADOS' : 'Términos: PENDIENTES'}</span>
+                            </span>
+
+                            {/* Deposit Payment Badge */}
+                            <span
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 border ${
+                                res.depositPaid || isTermsAndDepositApproved
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              }`}
+                            >
+                              <DollarSign className="w-3 h-3 text-emerald-400" />
+                              <span>{res.depositPaid || isTermsAndDepositApproved ? 'Seña: ACREDITADA' : 'Seña: PENDIENTE'}</span>
+                            </span>
+
+                            {/* 40-Minute Hold Status Badge */}
+                            {!isRejected && (
+                              <span
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 border ${
+                                  isCircuitComplete
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                    : isExpired
+                                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                    : res.termsSentAt
+                                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/35'
+                                    : 'bg-zinc-800/80 text-zinc-400 border-zinc-700/60'
+                                }`}
+                              >
+                                {isCircuitComplete ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    <span>Circuito: COMPLETADO</span>
+                                  </>
+                                ) : isExpired ? (
+                                  <>
+                                    <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                    <span>Retención 40m: VENCIDA (Turno Libre)</span>
+                                  </>
+                                ) : res.termsSentAt ? (
+                                  <>
+                                    <Clock className="w-3 h-3 text-amber-400 animate-pulse" />
+                                    <span>Retención: {Math.ceil(remainingHoldSeconds / 60)} min restantes</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3 h-3 text-zinc-500" />
+                                    <span>Términos sin enviar (40m sin iniciar)</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+
+                            {/* Missing summary warning badge if items pending */}
+                            {missingItems.length > 0 && !isRejected && !isTermsAndDepositApproved && (
+                              <span className="text-[10px] text-zinc-400 flex items-center gap-1 pl-1">
+                                <span className="text-amber-400 font-black">•</span> Faltan: {missingItems.join(', ')}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Notes if any */}
+                          {res.notes && (
+                            <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-xl p-2.5 text-xs text-zinc-300 flex items-start gap-2">
+                              <span className="text-amber-400 font-black uppercase text-[10px] shrink-0">Nota:</span>
+                              <span className="italic text-zinc-300">{res.notes}</span>
+                            </div>
+                          )}
+
+                          {/* Signed Waiver Quick Peek */}
+                          {isWaiverSigned && res.liabilityWaiver && (
+                            <div className="bg-teal-950/30 border border-teal-800/50 rounded-xl p-2.5 text-xs text-teal-200 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 truncate">
+                                <Shield className="w-4 h-4 text-teal-400 shrink-0" />
+                                <span className="truncate text-[11px]">
+                                  Términos aceptados por <strong>{res.liabilityWaiver.signerFullName}</strong> (DNI {res.liabilityWaiver.signerDni})
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setWaiverDocReservation(res)}
+                                className="px-2.5 py-1 rounded-lg bg-teal-500/20 hover:bg-teal-500 text-teal-300 hover:text-black font-black text-[10px] uppercase transition-colors shrink-0 cursor-pointer"
+                              >
+                                Ver Acta
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+
+                      {/* CARD FOOTER: Logical Action Toolbar */}
+                      <div className="mt-4 pt-3.5 border-t border-zinc-800/90 flex items-end justify-between gap-2.5">
+                        
+                        {/* Primary Workflow Actions */}
+                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                          
+                          {/* 1. Terms & Conditions Link Actions */}
+                          {!isWaiverSigned ? (
+                            <a
+                              href={generateWaiverWhatsAppMessage(res)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => {
+                                markReservationTermsSent(res.id);
+                                setTimeout(loadData, 300);
+                              }}
+                              className="px-3.5 py-2 min-h-[40px] h-10 rounded-xl bg-emerald-500/20 hover:bg-[#25D366] text-emerald-300 hover:text-black border border-emerald-500/50 font-black text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md text-center"
+                              title="Enviar enlace de Términos y Condiciones al WhatsApp del usuario (inicia retención de 40 minutos)"
+                            >
+                              <MessageCircle className="w-4 h-4 text-[#25D366] group-hover:text-black shrink-0" />
+                              <span>ENVIAR TÉRMINOS Y CONDICIONES</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setWaiverDocReservation(res)}
+                              className="px-3.5 py-2 min-h-[40px] h-10 rounded-xl bg-teal-500/20 hover:bg-teal-500 text-teal-300 hover:text-black border border-teal-500/40 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                              title="Ver Términos y Condiciones aceptados"
+                            >
+                              <FileText className="w-4 h-4 shrink-0" />
+                              <span>Ver Términos Aceptados</span>
+                            </button>
+                          )}
+
+                          {/* Re-activate 40 min if expired and not completed */}
+                          {isExpired && !isCircuitComplete && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await resetReservationExpiration(res.id);
+                                loadData();
+                                alert('¡Se reinició el plazo de 40 minutos! El turno vuelve a figurar retenido en el almanaque.');
+                              }}
+                              className="px-3 py-2 min-h-[40px] h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/40 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                              title="Reiniciar el plazo de retención por otros 40 minutos"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                              <span>Reactivar 40 min</span>
+                            </button>
+                          )}
+
+                          {/* 2. Confirmation Action */}
+                          {isPending ? (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(res.id, 'approved')}
+                              className="px-3.5 py-2 min-h-[40px] h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-heading font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                              title="Confirmar y habilitar la reserva"
+                            >
+                              <Check className="w-4 h-4 stroke-[3] shrink-0" />
+                              <span>Confirmar Reserva</span>
+                            </button>
+                          ) : isApproved ? (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(res.id, 'pending')}
+                              className="px-3.5 py-2 min-h-[40px] h-10 rounded-xl bg-emerald-950/80 hover:bg-zinc-800 text-emerald-300 hover:text-white border border-emerald-700/60 font-bold text-xs uppercase transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              title="Cambiar a estado pendiente"
+                            >
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>Reserva Confirmada (Cambiar)</span>
+                            </button>
+                          ) : null}
+
+                        </div>
+
+                        {/* Right Group: Direct Chat Icon & Delete Icon (Always aligned to bottom margin with the last button) */}
+                        <div className="flex items-center gap-2 shrink-0 self-end">
+                          
+                          {/* Direct WhatsApp Chat Icon Only */}
+                          <a
+                            href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(res.parentPhone)}&text=${encodeURIComponent(
+                              `¡Hola ${res.parentName}! 👋 Te escribimos desde *${res.branchName}* por la reserva para el cumple de *${res.childName}* 🎪🎉.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-10 h-10 min-h-[40px] min-w-[40px] p-2.5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366] text-[#25D366] hover:text-black border border-[#25D366]/40 transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm"
+                            title={`Abrir chat directo de WhatsApp con ${res.parentName}`}
+                          >
+                            <MessageCircle className="w-4 h-4 shrink-0" />
+                          </a>
+
+                          {/* DELETE RESERVATION BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() => setReservationToDelete(res)}
+                            className="w-10 h-10 min-h-[40px] min-w-[40px] p-2.5 rounded-xl bg-zinc-950 hover:bg-red-950/60 text-zinc-500 hover:text-red-400 border border-zinc-800 hover:border-red-800/50 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                            title="Eliminar Reserva"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* PAGINATION CONTROLS (MAXIMUM 8 CARDS PER PAGE) */}
+              {totalPages > 1 && (
+                <div className="bg-[#0e1117] border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+                  <div className="text-xs text-zinc-400 font-bold flex items-center gap-1.5 flex-wrap">
+                    <span>Mostrando</span>
+                    <strong className="text-amber-400 font-black">
+                      {(validPage - 1) * RESERVATIONS_PER_PAGE + 1} - {Math.min(validPage * RESERVATIONS_PER_PAGE, filteredReservations.length)}
+                    </strong>
+                    <span>de</span>
+                    <strong className="text-white font-black">{filteredReservations.length}</strong>
+                    <span>fichas</span>
+                    <span className="text-zinc-600">•</span>
+                    <span>Página <strong className="text-white">{validPage}</strong> de <strong className="text-white">{totalPages}</strong></span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentPage((prev) => Math.max(1, prev - 1));
+                        window.scrollTo({ top: 400, behavior: 'smooth' });
+                      }}
+                      disabled={validPage === 1}
+                      className="px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black uppercase transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+                      title="Página Anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span className="hidden sm:inline">Anterior</span>
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => {
+                      if (
+                        totalPages > 8 &&
+                        pageNumber !== 1 &&
+                        pageNumber !== totalPages &&
+                        Math.abs(pageNumber - validPage) > 2
+                      ) {
+                        if (pageNumber === 2 || pageNumber === totalPages - 1) {
+                          return (
+                            <span key={pageNumber} className="px-1 text-zinc-600 text-xs font-mono">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+
+                      return (
+                        <button
+                          key={pageNumber}
+                          type="button"
+                          onClick={() => {
+                            setCurrentPage(pageNumber);
+                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                          }}
+                          className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
+                            validPage === pageNumber
+                              ? 'bg-amber-400 text-black shadow-md font-black'
+                              : 'bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                        window.scrollTo({ top: 400, behavior: 'smooth' });
+                      }}
+                      disabled={validPage === totalPages}
+                      className="px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black uppercase transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+                      title="Página Siguiente"
+                    >
+                      <span className="hidden sm:inline">Siguiente</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: CONSULTAS WEB                                                      */}
+        {/* ========================================================================= */}
+        {activeTab === 'consultas' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-[#F2C700]" /> Consultas Web Recibidas
+              </h2>
+            </div>
+
+            {filteredInquiries.length === 0 ? (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-12 text-center space-y-2">
+                <MessageCircle className="w-10 h-10 text-zinc-600 mx-auto" />
+                <h3 className="font-heading font-black text-lg text-white uppercase">No hay consultas pendientes</h3>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredInquiries.map((inq) => (
+                  <div key={inq.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2.5 py-0.5 rounded-md font-black text-xs uppercase flex items-center gap-1 border ${
+                        inq.branchId === 'calle-5' || inq.branchName?.toLowerCase().includes('5')
+                          ? 'bg-[#ED3078]/15 border-[#ED3078]/40 text-[#ED3078]'
+                          : 'bg-[#1EB8BF]/15 border-[#1EB8BF]/40 text-[#1EB8BF]'
+                      }`}>
+                        <MapPin className="w-3 h-3" /> {inq.branchName}
+                      </span>
+                      <span className="text-xs text-zinc-400 font-medium">{formatDateDDMMAAAA(inq.createdAt)}</span>
+                    </div>
+
+                    <div>
+                      <h4 className="font-heading font-black text-base text-white">{inq.senderName} ({inq.senderPhone})</h4>
+                      <p className="text-xs text-zinc-300 mt-1 bg-black/50 p-3 rounded-xl border border-zinc-800">{inq.message}</p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(inq.senderPhone)}&text=${encodeURIComponent(
+                          `¡Hola ${inq.senderName}! 👋 Te escribimos desde *${inq.branchName}* por tu consulta en nuestra web.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full sm:w-auto px-4 py-2.5 min-h-[42px] rounded-xl bg-[#25D366] text-black font-black text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md text-center"
+                      >
+                        <MessageCircle className="w-4 h-4 shrink-0" /> Responder por WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: BLOQUEO DE FECHAS, PERÍODOS Y MESES                                */}
+        {/* ========================================================================= */}
+        {activeTab === 'bloqueo' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
+              <h3 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
+                <Lock className="w-5 h-5 text-[#ED3078]" /> Bloquear Calendario
+              </h3>
+
+              <form onSubmit={handleCreateCalendarBlock} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Sucursal a Bloquear</label>
+                  <select
+                    disabled={isFranquista}
+                    value={blockBranchId}
+                    onChange={(e) => setBlockBranchId(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                  >
+                    <option value="all">Todas las Sucursales</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Tipo de Bloqueo</label>
+                  <select
+                    value={blockType}
+                    onChange={(e) => setBlockType(e.target.value as CalendarBlockType)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                  >
+                    <option value="single_day">Día Específico</option>
+                    <option value="date_range">Rango de Fechas (Período)</option>
+                    <option value="full_month">Mes Completo</option>
+                    <option value="full_year">Año Completo</option>
+                  </select>
+                </div>
+
+                {blockType === 'single_day' && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase flex items-center justify-between">
+                      <span>Fecha Específica *</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={blockDateStr}
+                      style={{ colorScheme: 'dark' }}
+                      onChange={(e) => setBlockDateStr(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                    />
+                  </div>
+                )}
+
+                {blockType === 'date_range' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Desde *</label>
+                      <input
+                        type="date"
+                        required
+                        value={blockStartDate}
+                        style={{ colorScheme: 'dark' }}
+                        onChange={(e) => setBlockStartDate(e.target.value)}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Hasta *</label>
+                      <input
+                        type="date"
+                        required
+                        value={blockEndDate}
+                        style={{ colorScheme: 'dark' }}
+                        onChange={(e) => setBlockEndDate(e.target.value)}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {blockType === 'full_month' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Mes *</label>
+                      <select
+                        value={blockMonthIndex}
+                        onChange={(e) => setBlockMonthIndex(Number(e.target.value))}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                      >
+                        {MONTH_NAMES_ES.map((mName, idx) => (
+                          <option key={idx} value={idx}>{mName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Año *</label>
+                      <select
+                        value={blockYear}
+                        onChange={(e) => setBlockYear(Number(e.target.value))}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                      >
+                        {[2026, 2027, 2028, 2029, 2030].map((yr) => (
+                          <option key={yr} value={yr}>{yr}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {blockType === 'full_year' && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Año *</label>
+                    <select
+                      value={blockYear}
+                      onChange={(e) => setBlockYear(Number(e.target.value))}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                    >
+                      {[2026, 2027, 2028, 2029, 2030, 2031].map((yr) => (
+                        <option key={yr} value={yr}>{yr}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Motivo del Bloqueo</label>
+                  <input
+                    type="text"
+                    required
+                    value={blockReason}
+                    onChange={(e) => setBlockReason(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                    placeholder="Ej. Vacaciones, Mantenimiento, Feriado"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#ED3078] hover:bg-[#d82469] text-white font-black text-xs uppercase py-3 rounded-xl transition-all cursor-pointer shadow-md"
+                >
+                  Bloquear Calendario
+                </button>
+              </form>
+            </div>
+
+            <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
+              <h3 className="font-heading font-black text-lg text-white uppercase">Bloqueos Activos en el Calendario</h3>
+              {calendarBlocks.length === 0 ? (
+                <p className="text-xs text-zinc-400">No hay bloqueos de días, períodos o meses actualmente.</p>
+              ) : (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {calendarBlocks.map((b) => (
+                    <div key={b.id} className="bg-black/60 border border-zinc-800 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-[#ED3078]/20 text-[#ED3078] text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                            {b.type === 'single_day' ? 'Día Específico' : b.type === 'date_range' ? 'Rango de Fechas' : b.type === 'full_month' ? 'Mes Completo' : 'Año Completo'}
+                          </span>
+                          <span className="text-zinc-400 text-xs font-bold">
+                            {b.branchName || (b.branchId === 'all' ? 'Todas las Sucursales' : b.branchId)}
+                          </span>
+                        </div>
+                        <p className="text-xs font-black text-white">
+                          {b.type === 'single_day' && `Fecha: ${formatDateDDMMAAAA(b.date || '')}`}
+                          {b.type === 'date_range' && `Desde ${formatDateDDMMAAAA(b.startDate || '')} hasta ${formatDateDDMMAAAA(b.endDate || '')}`}
+                          {b.type === 'full_month' && `Mes: ${b.monthName || b.monthKey}`}
+                          {b.type === 'full_year' && `Año Completo: ${b.year}`}
+                        </p>
+                        <p className="text-[11px] text-zinc-400">Motivo: {b.reason}</p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveCalendarBlock(b.id)}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-bold text-emerald-400 flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-sm"
+                        title="Desbloquear y liberar fecha en el calendario"
+                      >
+                        <Unlock className="w-3.5 h-3.5" />
+                        <span>Desbloquear</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: CARGA MANUAL DE RESERVA                                            */}
+        {/* ========================================================================= */}
+        {activeTab === 'nueva' && (
+          <div className="max-w-2xl mx-auto bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-5">
+            <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+              <Plus className="w-5 h-5 text-[#A3BA13]" />
+              <h2 className="font-heading font-black text-lg text-white uppercase">Carga Manual de Festejo</h2>
+            </div>
+
+            <form onSubmit={handleCreateManual} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300 uppercase">Sucursal</label>
+                <select
+                  disabled={isFranquista}
+                  value={manualBranchId}
+                  onChange={(e) => setManualBranchId(e.target.value)}
+                  className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase flex items-center justify-between">
+                    <span>Fecha del Festejo *</span>
+                    <span className="text-amber-400 text-[10px] lowercase font-normal flex items-center gap-0.5">
+                      <CalendarIcon className="w-3 h-3" /> clic en almanaque
+                    </span>
+                  </label>
+                  <div className="relative flex items-center">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = e.currentTarget.parentElement?.querySelector('input');
+                        if (input && 'showPicker' in input) {
+                          (input as any).showPicker();
+                        } else {
+                          input?.focus();
+                        }
+                      }}
+                      className="absolute left-3 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer z-10 flex items-center justify-center p-0.5"
+                      title="Abrir almanaque para seleccionar fecha"
+                    >
+                      <CalendarIcon className="w-4 h-4 text-amber-400" />
+                    </button>
+                    <input
+                      type="date"
+                      required
+                      value={manualDate}
+                      style={{ colorScheme: 'dark' }}
+                      onChange={(e) => handleManualDateChange(e.target.value)}
+                      className="w-full bg-black border-2 border-zinc-700 hover:border-amber-400 focus:border-[#1EB8BF] rounded-xl pl-9 pr-3 py-2.5 text-xs text-white min-h-[42px] cursor-pointer [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:brightness-150 [&::-webkit-calendar-picker-indicator]:scale-125 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Turno</label>
+                  <select
+                    value={manualSlot}
+                    onChange={(e) => setManualSlot(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white min-h-[42px]"
+                  >
+                    {getAvailableSlotsForDate(manualDate).map((s) => (
+                      <option key={s.id} value={s.id}>{s.title} ({s.timeRange})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Nombre Adulto *</label>
+                  <input
+                    type="text"
+                    required
+                    value={manualParent}
+                    onChange={(e) => setManualParent(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white min-h-[42px]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Celular WhatsApp</label>
+                  <input
+                    type="tel"
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white min-h-[42px]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Cumpleañer@ *</label>
+                  <input
+                    type="text"
+                    required
+                    value={manualChild}
+                    onChange={(e) => setManualChild(e.target.value)}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white min-h-[42px]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300 uppercase">Edad</label>
+                  <input
+                    type="number"
+                    min="6"
+                    max="12"
+                    value={manualAge}
+                    onChange={(e) => setManualAge(Number(e.target.value))}
+                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white min-h-[42px]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300 uppercase">Notas internas</label>
+                <textarea
+                  rows={2}
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              {/* CHECKBOX PROMINENTE: Términos, condiciones y seña aprobados */}
+              <div className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                manualTermsAndDepositApproved
+                  ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-lg shadow-emerald-950/40'
+                  : 'bg-black/70 border-zinc-700 hover:border-zinc-500 text-zinc-300'
+              }`}>
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={manualTermsAndDepositApproved}
+                    onChange={(e) => setManualTermsAndDepositApproved(e.target.checked)}
+                    className="w-5 h-5 rounded mt-0.5 border-zinc-600 bg-black text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500 shrink-0"
+                  />
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-heading font-black text-sm text-white uppercase tracking-wide flex items-center gap-1.5">
+                        <CheckCircle2 className={`w-4 h-4 ${manualTermsAndDepositApproved ? 'text-emerald-400' : 'text-zinc-400'}`} />
+                        Términos, condiciones y seña aprobados
+                      </span>
+                      {manualTermsAndDepositApproved && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-black text-[10px] font-black uppercase">
+                          Aprobado
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-tight">
+                      Al tildar este casillero, la reserva se creará directamente confirmada y con seña acreditada, reflejándose de inmediato en la tarjeta de reserva del panel.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#A3BA13] hover:bg-[#b8d116] text-black font-black text-xs uppercase py-3.5 min-h-[46px] rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+              >
+                Guardar Reserva Manual
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5 (SUPERADMIN): GESTIÓN DE SUCURSALES / FRANQUICIAS                    */}
+        {/* ========================================================================= */}
+        {isSuperAdmin && activeTab === 'sucursales' && (
+          <div className="space-y-6">
+            
+            <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+              <div>
+                <h2 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
+                  <Store className="w-5 h-5 text-[#ED3078]" /> Franquicias & Sucursales Activas
+                </h2>
+                <p className="text-xs text-zinc-400">Escala el negocio añadiendo nuevas sucursales y franquistas</p>
+              </div>
+
+              {isSuperAdminOnly && (
+                <button
+                  onClick={() => setIsAddingBranch(!isAddingBranch)}
+                  className="px-3.5 py-2 rounded-xl bg-[#ED3078] text-white font-black text-xs uppercase flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Nueva Sucursal
+                </button>
+              )}
+            </div>
+
+            {/* New Branch Form Drawer */}
+            {isAddingBranch && (
+              <form onSubmit={handleAddBranchSubmit} className="bg-zinc-900 border-2 border-[#ED3078] rounded-3xl p-6 space-y-4 animate-in fade-in duration-200">
+                <h3 className="font-heading font-black text-base text-white uppercase">Alta de Nueva Sucursal</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Nombre de Sucursal *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: El Galpón Calle 20"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Dirección *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Calle 20 Nº 1450"
+                      value={newBranchAddress}
+                      onChange={(e) => setNewBranchAddress(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Teléfono de Contacto</label>
+                    <input
+                      type="text"
+                      placeholder="221 555-4321"
+                      value={newBranchPhone}
+                      onChange={(e) => setNewBranchPhone(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">WhatsApp para Derivación (Directo)</label>
+                    <input
+                      type="text"
+                      placeholder="5492215554321"
+                      value={newBranchWhatsapp}
+                      onChange={(e) => setNewBranchWhatsapp(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingBranch(false)}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-bold uppercase"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#ED3078] text-white text-xs font-black uppercase"
+                  >
+                    Guardar y Habilitar Sucursal
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Branches List */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {branches.map((b) => {
+                const branchResCount = reservations.filter(r => r.branchId === b.id).length;
+                return (
+                  <div key={b.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-[#1EB8BF]" />
+                        <h4 className="font-heading font-black text-base text-white uppercase">{b.name}</h4>
+                      </div>
+                      <button
+                        onClick={() => handleToggleBranchActive(b.id, b.isActive)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase cursor-pointer ${
+                          b.isActive ? 'bg-[#A3BA13] text-black' : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        {b.isActive ? 'Activa' : 'Pausada'}
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-zinc-300">{b.address}, {b.city}</p>
+                    <p className="text-xs text-zinc-400">WhatsApp: {b.whatsappNumber} • Tel: {b.phone}</p>
+                    
+                    <div className="pt-2 border-t border-zinc-800 flex justify-between items-center text-xs text-zinc-400">
+                      <span>Reservas históricas: <strong className="text-white">{branchResCount}</strong></span>
+                      <span className="text-[11px] text-zinc-500 font-mono">ID: {b.id}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6 (SUPERADMIN): GESTIÓN DE USUARIOS Y CONTROL DE ACCESO              */}
+        {/* ========================================================================= */}
+        {isSuperAdminOnly && activeTab === 'usuarios' && (
+          <div className="space-y-6">
+            
+            <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+              <div>
+                <h2 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#F2C700]" /> Control y Gestión de Usuarios
+                </h2>
+                <p className="text-xs text-zinc-400">Pausa, inhabilita o activa accesos para Admins y Franquistas</p>
+              </div>
+
+              <button
+                onClick={() => setIsAddingUser(!isAddingUser)}
+                className="px-3.5 py-2 rounded-xl bg-[#F2C700] text-black font-black text-xs uppercase flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Nuevo Usuario
+              </button>
+            </div>
+
+            {/* New User Form Drawer */}
+            {isAddingUser && (
+              <form onSubmit={handleAddUserSubmit} className="bg-zinc-900 border-2 border-[#F2C700] rounded-3xl p-6 space-y-4 animate-in fade-in duration-200">
+                <h3 className="font-heading font-black text-base text-white uppercase">Alta de Usuario con Rol</h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Nombre Completo *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Laura Benítez"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Nombre de Usuario (Login) *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: franquicia20"
+                      value={newUserUsername}
+                      onChange={(e) => setNewUserUsername(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Email (Opcional)</label>
+                    <input
+                      type="email"
+                      placeholder="Ej: usuario@elgalpon.com"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Contraseña Personalizada</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: clave1234 (o dejar vacío para default)"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-zinc-300 uppercase">Rol Asignado *</label>
+                    <select
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                    >
+                      <option value="franquista">Franquista (Gestor de Sucursal)</option>
+                      <option value="admin">Admin (Dueño del Negocio)</option>
+                      <option value="superadmin">SuperAdmin (Desarrollador)</option>
+                    </select>
+                  </div>
+
+                  {newUserRole === 'franquista' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Sucursal Asignada *</label>
+                      <select
+                        value={newUserBranchId}
+                        onChange={(e) => setNewUserBranchId(e.target.value)}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white"
+                      >
+                        <option value="">Seleccionar Sucursal</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingUser(false)}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-bold uppercase"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#F2C700] text-black text-xs font-black uppercase"
+                  >
+                    Dar de Alta Usuario
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Users List with Active/Paused Toggle */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {appUsers.map((u) => {
+                const isUserActive = u.isActive !== false;
+                const isSelf = u.uid === currentUser?.uid;
+
+                return (
+                  <div key={u.uid} className={`bg-zinc-900 border-2 rounded-3xl p-5 space-y-3 transition-all ${
+                    isUserActive ? 'border-zinc-800' : 'border-[#ED3078]/60 bg-red-950/20'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User className="w-5 h-5 text-zinc-400" />
+                        <div>
+                          <span className="font-heading font-black text-base text-white block">{u.displayName}</span>
+                          <span className="text-[11px] text-zinc-400 font-mono">@{u.username}</span>
+                        </div>
+                      </div>
+
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        u.role === 'superadmin' 
+                          ? 'bg-[#ED3078] text-white' 
+                          : u.role === 'admin' 
+                          ? 'bg-[#F2C700] text-black' 
+                          : 'bg-[#1EB8BF] text-black'
+                      }`}>
+                        {u.role}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-zinc-400 space-y-1">
+                      <p>Email: <strong className="text-zinc-200">{u.email}</strong></p>
+                      {u.assignedBranchName && (
+                        <p className="text-[#1EB8BF] font-bold">Sucursal Asignada: {u.assignedBranchName}</p>
+                      )}
+                    </div>
+
+                    {/* User Lock Warning & SuperAdmin Unlock Action */}
+                    {u.isLocked && (
+                      <div className="p-3 rounded-2xl bg-rose-950/80 border-2 border-rose-500/70 flex items-center justify-between gap-2 shadow-lg">
+                        <div className="flex items-center gap-2">
+                          <AlertOctagon className="w-4 h-4 text-rose-400 shrink-0" />
+                          <div>
+                            <span className="text-xs font-black text-rose-300 uppercase block">
+                              Bloqueado ({u.failedAttempts || 5}/5 intentos)
+                            </span>
+                            <span className="text-[10px] text-zinc-300">
+                              {u.lockedReason || 'Superó 5 intentos fallidos de login'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleUnlockUser(u.uid, u.displayName)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[11px] uppercase flex items-center gap-1.5 shadow-md cursor-pointer transition-all shrink-0"
+                          title="Desbloquear cuenta de usuario y resetear intentos fallidos a 0"
+                        >
+                          <Unlock className="w-3.5 h-3.5" />
+                          <span>Desbloquear</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* SuperAdmin Action Bar: Pause / Inhabilitar & Edit */}
+                    <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${isUserActive ? 'bg-[#A3BA13]' : 'bg-[#ED3078]'}`} />
+                        <span className={`text-[11px] font-black uppercase ${isUserActive ? 'text-[#A3BA13]' : 'text-[#ED3078]'}`}>
+                          {isUserActive ? 'Habilitado / Activo' : 'Pausado / Inhabilitado'}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAppUserToEdit(u)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer bg-zinc-800 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-400 border border-zinc-700"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Editar</span>
+                        </button>
+
+                        {!isSelf ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleUserActive(u.uid, isUserActive)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                              isUserActive
+                                ? 'bg-zinc-800 hover:bg-[#ED3078] text-zinc-300 hover:text-white border border-zinc-700'
+                                : 'bg-[#A3BA13] hover:bg-[#8ea210] text-black shadow-md'
+                            }`}
+                          >
+                            {isUserActive ? (
+                              <>
+                                <UserX className="w-3.5 h-3.5" />
+                                <span>Pausar</span>
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Reactivar</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-zinc-500 font-bold uppercase self-center">(Tu usuario)</span>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: COPIAS DE SEGURIDAD & BACKUP (SUPERADMIN)                          */}
+        {/* ========================================================================= */}
+        {activeTab === 'backup' && isSuperAdminOnly && (
+          <div className="space-y-6">
+            
+            {/* Header Box */}
+            <div className="bg-[#0e1117] border-2 border-emerald-500/30 rounded-3xl p-6 relative overflow-hidden shadow-2xl space-y-4">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-[#1EB8BF] to-amber-400" />
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                    <Database className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-heading font-black text-lg sm:text-xl text-white uppercase tracking-wide flex items-center gap-2">
+                      Centro de Copias de Seguridad (Backups)
+                    </h2>
+                    <p className="text-xs text-zinc-400">
+                      Resguardo integral sin costo para tu base de datos de Firebase (Plan Spark).
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleBackupDownload}
+                  className="px-5 py-3 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-black font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Descargar Backup Ahora (.JSON)</span>
+                </button>
+              </div>
+
+              {backupSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>¡Copia de seguridad descargada exitosamente en tu computadora! Se guardó con la fecha actual.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Stats & Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 space-y-2">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase">Último Backup Realizado</span>
+                <div className="font-heading font-black text-base text-amber-400 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-zinc-500" />
+                  <span>
+                    {lastBackupTime
+                      ? formatDateDDMMAAAA(lastBackupTime) + ' ' + new Date(lastBackupTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                      : 'Aún no realizado'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Frecuencia sugerida: Cada 14 días (quincenal).
+                </p>
+              </div>
+
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 space-y-2">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase">Datos que incluye el respaldo</span>
+                <div className="font-heading font-black text-2xl text-white">
+                  {reservations.length} <span className="text-xs font-normal text-zinc-400">reservas</span> • {inquiries.length} <span className="text-xs font-normal text-zinc-400">consultas</span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Incluye sucursales ({branches.length}) y usuarios gestores ({appUsers.length}).
+                </p>
+              </div>
+
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 space-y-2">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase">Compatibilidad y Formato</span>
+                <div className="font-heading font-black text-base text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>JSON Estructurado UTF-8</span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  Podés abrirlo con cualquier editor, archivarlo en Google Drive o restaurarlo.
+                </p>
+              </div>
+
+            </div>
+
+            {/* Instruction Card */}
+            <div className="bg-zinc-900/70 border border-zinc-800 rounded-3xl p-6 space-y-3">
+              <h3 className="font-heading font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
+                <Shield className="w-4 h-4 text-[#1EB8BF]" />
+                ¿Cómo mantener protegida la información del salón?
+              </h3>
+              <ul className="text-xs text-zinc-300 space-y-2 list-disc list-inside">
+                <li>
+                  <strong className="text-white">Al hacer clic en "Descargar Backup Ahora":</strong> Se generará un archivo comprimido de texto estructurado con el nombre <code className="text-amber-400 bg-black/40 px-1.5 py-0.5 rounded">backup_elgalpon_DD-MM-AAAA.json</code>.
+                </li>
+                <li>
+                  <strong className="text-white">Almacenamiento seguro:</strong> Te recomendamos subir este archivo a tu Google Drive personal o guardarlo en una carpeta de tu computadora cada dos semanas.
+                </li>
+                <li>
+                  <strong className="text-white">Independencia del Plan de Firebase:</strong> Esta herramienta te permite tener copias físicas en tu poder sin pagar servicios adicionales de Google Cloud.
+                </li>
+              </ul>
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 8: GESTIÓN DE PRECIOS & ARANCELES (SUPERADMIN)                       */}
+        {/* ========================================================================= */}
+        {activeTab === 'precios' && isSuperAdminOnly && (
+          <AdminPricingManager isSuperAdmin={isSuperAdminOnly} />
+        )}
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODALS (WAIVER, DEPOSIT, EDIT & DELETE)                                    */}
+      {/* ========================================================================= */}
+
+      {/* 1. View Signed Waiver Document Certificate */}
+      {waiverDocReservation && (
+        <ViewWaiverDocumentModal
+          isOpen={!!waiverDocReservation}
+          reservation={waiverDocReservation}
+          onClose={() => setWaiverDocReservation(null)}
+        />
+      )}
+
+      {/* 2. Automatic Deposit Approval Notice & WhatsApp Link */}
+      {approvalNoticeReservation && (
+        <ApproveDepositModal
+          isOpen={!!approvalNoticeReservation}
+          reservation={approvalNoticeReservation}
+          onClose={() => setApprovalNoticeReservation(null)}
+        />
+      )}
+
+      {/* 3. Send Bank Details / Request Deposit WhatsApp Modal */}
+      {sendDepositModalReservation && (
+        <SendDepositRequestModal
+          isOpen={!!sendDepositModalReservation}
+          reservation={sendDepositModalReservation}
+          onClose={() => setSendDepositModalReservation(null)}
+        />
+      )}
+
+      {/* 4. Direct In-Store / Tablet Waiver Signature Modal */}
+      {directSignReservation && (
+        <LiabilityWaiverFormModal
+          isOpen={!!directSignReservation}
+          reservationId={directSignReservation.id}
+          onClose={() => setDirectSignReservation(null)}
+          onWaiverSaved={() => {
+            loadData();
+            setDirectSignReservation(null);
+          }}
+        />
+      )}
+
+      {/* 5. Edit Reservation Modal */}
+      {reservationToEdit && (
+        <EditReservationModal
+          isOpen={!!reservationToEdit}
+          reservation={reservationToEdit}
+          branches={branches}
+          onClose={() => setReservationToEdit(null)}
+          onSaved={(updatedList) => {
+            setReservations(updatedList);
+            setReservationToEdit(null);
+          }}
+        />
+      )}
+
+      {/* 6. In-App Delete Confirmation Modal (Bypasses iframe popup block) */}
+      {reservationToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-zinc-950 border-2 border-red-500/40 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4 text-white">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="font-heading font-black text-lg uppercase text-white">
+                ¿Eliminar Ficha de Reserva?
+              </h3>
+              <p className="text-xs text-zinc-300">
+                Estás por eliminar permanentemente la reserva para el cumpleaños de <strong className="text-amber-400 font-bold">{reservationToDelete.childName}</strong> del día <strong className="text-white font-mono">{formatDateDDMMAAAA(reservationToDelete.date)}</strong> ({reservationToDelete.slotTime}) en <strong className="text-white">{reservationToDelete.branchName}</strong>.
+              </p>
+              <p className="text-[11px] text-zinc-500 font-medium">
+                Esta acción liberará el turno y no se puede deshacer.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setReservationToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold text-xs uppercase transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const updated = await deleteReservation(reservationToDelete.id);
+                  setReservations(updated);
+                  setReservationToDelete(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-heading font-black text-xs uppercase tracking-wide transition-all shadow-lg cursor-pointer"
+              >
+                Sí, Eliminar Ficha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Edit User Modal */}
+      {appUserToEdit && (
+        <EditAppUserModal
+          isOpen={!!appUserToEdit}
+          user={appUserToEdit}
+          onClose={() => setAppUserToEdit(null)}
+          onSave={handleSaveAppUser}
+        />
+      )}
+
+      {/* 8. WhatsApp / Public Link Configuration Modal */}
+      {isUrlConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl p-6 space-y-4 text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-[#1EB8BF]" />
+                <h3 className="font-heading font-black text-base uppercase text-white">
+                  Enlace de Términos y Condiciones
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsUrlConfigModalOpen(false)}
+                className="text-zinc-400 hover:text-white text-xs p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-zinc-300">
+                Este es el enlace base que se adjunta automáticamente en los mensajes de WhatsApp para que los clientes completen el formulario de Términos, aceptación y datos de seña.
+              </p>
+
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">URL Actual Detectada en el Navegador:</span>
+                <code className="text-emerald-400 font-mono text-xs break-all block">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}
+                </code>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] font-bold text-zinc-200 uppercase block">
+                  Dominio / URL Pública Personalizada (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: https://misalon.com (dejar vacío para usar la URL del navegador)"
+                  value={customUrlInput}
+                  onChange={(e) => setCustomUrlInput(e.target.value)}
+                  className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono placeholder:text-zinc-600 focus:border-[#1EB8BF] focus:outline-none"
+                />
+                <p className="text-[11px] text-zinc-500">
+                  Si tenés un dominio propio configurado o un link público compartido, podés pegarlo aquí. Si lo dejás vacío, usará siempre la dirección actual del navegador de forma automática.
+                </p>
+              </div>
+
+              <div className="bg-black/60 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase block">Vista Previa del Enlace Generado:</span>
+                <code className="text-[#1EB8BF] font-mono text-[11px] break-all block">
+                  {customUrlInput.trim() ? customUrlInput.trim().replace(/\/+$/, '') : (typeof window !== 'undefined' ? window.location.origin : '')}/?waiver=res_ejemplo
+                </code>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomBaseUrl('');
+                  setCustomUrlInput('');
+                  setIsUrlConfigModalOpen(false);
+                }}
+                className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold uppercase transition-colors cursor-pointer"
+              >
+                Restablecer a Automático
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomBaseUrl(customUrlInput);
+                  setIsUrlConfigModalOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#1EB8BF] hover:bg-[#1EB8BF]/90 text-black font-heading font-black text-xs uppercase transition-all cursor-pointer"
+              >
+                Guardar Configuración
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

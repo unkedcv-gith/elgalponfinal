@@ -1,0 +1,6 @@
+{
+  "deploy": true,
+  "version": "1.0.1",
+  "updatedAt": "2026-09-29T14:05:00Z",
+  "summary": "Actualizaciones recientes: Formato de fecha de backup a DD-MM-AAAA y acceso protegido de administración con pulsación prolongada en logo"
+}

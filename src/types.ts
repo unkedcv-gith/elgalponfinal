@@ -1,0 +1,255 @@
+export type UserRole = 'superadmin' | 'admin' | 'franquista' | 'web_user';
+
+export type ReservationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface Branch {
+  id: string; // e.g. "calle-5", "calle-13"
+  name: string; // "El Galpón Calle 5"
+  address: string; // "Calle 5 e/ 58 y 59"
+  city: string; // "La Plata"
+  phone: string; // "+54 9 221 573-1047"
+  whatsappNumber: string; // "5492215731047"
+  franquistaUserId?: string;
+  franquistaName?: string;
+  franquistaEmail?: string;
+  isActive: boolean;
+  color?: string;
+  createdAt: string;
+}
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  username: string;
+  displayName: string;
+  password?: string;
+  role: UserRole;
+  assignedBranchId?: string; // required if role === 'franquista'
+  assignedBranchName?: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt: string;
+
+  // Security and Lockout
+  failedAttempts?: number;
+  isLocked?: boolean;
+  lockedAt?: string;
+  lockedReason?: string;
+}
+
+export interface LiabilityWaiver {
+  id: string;
+  reservationId: string;
+  signedAt: string; // ISO date string
+  
+  // Titular / Adulto Responsable
+  signerFullName: string;
+  signerDni: string;
+  signerPhone: string;
+  signerEmail: string;
+  signerAddress: string;
+  relationship: 'madre' | 'padre' | 'tutor' | 'familiar' | 'otro';
+  relationshipDetail?: string;
+
+  // Datos del Agasajado / Menores
+  childFullName: string;
+  childAge: number;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  medicalInsurance?: string; // Obra Social / Prepaga
+  medicalConditions?: string; // Alergias, asma, medicación, observaciones
+
+  // Cláusulas Aceptadas
+  acceptedRules: boolean; // Reglamento interno, uso de calzado e indumentaria
+  acceptedPhysicalFitness: boolean; // Aptitud física para juegos deportivos y de altura
+  acceptedRiskAssumption: boolean; // Asunción de riesgos inherentes al juego deportivo
+  acceptedMedicalEmergencyAuth: boolean; // Autorización de primeros auxilios y emergencia médica
+  acceptedTermsAndConditions?: boolean; // Aceptación explícita de términos y condiciones en la 3ra pantalla
+  
+  // Firma Digital
+  signatureDataUrl: string; // Canvas base64 data url
+  status: 'signed' | 'pending';
+  deviceInfo?: string;
+}
+
+export interface Reservation {
+  id: string;
+  branchId: string; // "calle-5" | "calle-13"
+  branchName: string;
+  createdAt: string;
+  date: string; // YYYY-MM-DD
+  monthKey?: string; // YYYY-MM for fast monthly aggregation
+  slotId: string;
+  slotTime: string; // e.g. "15:00 a 17:30 hs"
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  childName: string;
+  childAge: number;
+  estimatedKids: number;
+  status: ReservationStatus;
+  depositPaid: boolean;
+  depositAmount: number;
+  totalPrice?: number;
+  notes?: string;
+  additionalPackage: 'base_20' | 'adicional_21_28' | 'adicional_29_35';
+  adultsFoodInfo?: string;
+  createdByRole?: UserRole;
+  
+  // Liability Waiver Integration
+  waiverStatus?: 'pending' | 'signed';
+  liabilityWaiver?: LiabilityWaiver;
+
+  // Terms, conditions and deposit approval toggle
+  termsAndDepositApproved?: boolean;
+  termsApprovedAt?: string;
+
+  // 40-minute expiration after sending terms and conditions
+  termsSentAt?: string; // ISO timestamp when terms and conditions were sent
+  termsOpenedAt?: string; // ISO timestamp when user entered the waiver form
+}
+
+export interface Inquiry {
+  id: string;
+  branchId: string;
+  branchName: string;
+  senderName: string;
+  senderPhone: string;
+  senderEmail: string;
+  topic: 'cumpleanos' | 'talleres' | 'por_un_dia' | 'general';
+  message: string;
+  status: 'new' | 'contacted' | 'resolved';
+  createdAt: string;
+}
+
+export interface TimeSlot {
+  id: string;
+  title: string;
+  timeRange: string;
+  description: string;
+}
+
+export type CalendarBlockType = 'single_day' | 'date_range' | 'full_month' | 'full_year';
+
+export interface CalendarBlock {
+  id: string;
+  type: CalendarBlockType;
+  branchId: string; // specific branch ID or 'all' (bloqueo general)
+  branchName?: string; // "Todas las Franquicias" or branch name
+  reason: string;
+  createdAt: string;
+  createdBy?: string;
+
+  // For single_day
+  date?: string; // YYYY-MM-DD
+
+  // For date_range
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+
+  // For full_month
+  year?: number;
+  monthIndex?: number; // 0 to 11 (0 = Enero, 11 = Diciembre)
+  monthKey?: string; // YYYY-MM (e.g. "2027-01")
+  monthName?: string; // e.g. "Enero 2027"
+}
+
+export interface BlockedDate {
+  id?: string;
+  blockId?: string;
+  blockType?: CalendarBlockType;
+  branchId?: string; // specific to branch or 'all'
+  date: string; // YYYY-MM-DD
+  reason: string;
+  createdAt?: string;
+}
+
+export interface FaqItem {
+  id: string;
+  numberTag: string;
+  question: string;
+  answer: string;
+  category: 'cumpleanos' | 'talleres' | 'por_un_dia';
+  highlight?: string;
+}
+
+export interface WorkshopProgram {
+  id: string;
+  title: string;
+  subtitle: string;
+  ageRange: string;
+  schedule: string;
+  pricing?: {
+    onceAWeek: string;
+    twiceAWeek: string;
+  };
+  description: string;
+  highlights: string[];
+  color: 'cyan' | 'pink' | 'yellow' | 'lime';
+  iconName: string;
+}
+
+export interface AttractionItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  staffSupervised: boolean;
+}
+
+export interface ReviewItem {
+  id: string;
+  author: string;
+  event: string;
+  comment: string;
+  rating: number;
+}
+
+export interface DaycarePricingOption {
+  days: number; // 1 to 5
+  hours: number; // 1 to 5
+  price: number; // e.g. 90000
+}
+
+export interface DaycareDailyOption {
+  hours: number; // 1 to 5
+  price: number; // e.g. 9500
+}
+
+export interface BirthdayMonthPrice {
+  monthIndex: number; // 0 to 11 (0 = Enero, 8 = Septiembre, etc.)
+  monthName: string;
+  basePrice: number;
+  basePriceCalle5?: number;
+  basePriceCalle13?: number;
+  additionalsCalle5?: BirthdayAdditionalPrice[];
+  additionalsCalle13?: BirthdayAdditionalPrice[];
+  additionals?: BirthdayAdditionalPrice[];
+}
+
+export interface BirthdayAdditionalPrice {
+  id: string;
+  name: string;
+  badge?: string;
+  description: string;
+  price: number;
+  branchId?: string; // 'calle-5' | 'calle-13' | 'all'
+  isMaxChicos?: boolean;
+}
+
+export interface PricingSettings {
+  fitness: {
+    onceAWeek: number; // 32000
+    twiceAWeek: number; // 52000
+  };
+  daycare: {
+    options: DaycarePricingOption[];
+    dailyRates: DaycareDailyOption[];
+  };
+  birthdays: {
+    depositAmount: number;
+    monthlyBasePrices: BirthdayMonthPrice[];
+    additionals: BirthdayAdditionalPrice[];
+  };
+  updatedAt?: string;
+}
