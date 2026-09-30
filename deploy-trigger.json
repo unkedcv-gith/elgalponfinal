@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.12",
-  "updatedAt": "2026-09-30T18:02:15Z",
-  "summary": "Eliminación del degradado con filtro blur en la versión mobile del header para ofrecer un fondo negro sólido de alto contraste donde el logo brille nitidamente."
+  "version": "1.0.13",
+  "updatedAt": "2026-09-30T18:32:17Z",
+  "summary": "Actualización lista para publicación. La versión actual en AI Studio incluye todas las correcciones: simulador de Espacio UP optimizado, eliminación de grillas estáticas y header mobile con logo nítido."
 }
