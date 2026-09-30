@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
       - name: ⚙️ Use Node.js
         uses: actions/setup-node@v4
@@ -28,41 +26,11 @@ jobs:
       - name: 🏗️ Build Project
         run: npm run build
 
-      - name: 🔍 Verify Required Secrets & Variables
-        run: |
-          echo "Verificando credenciales y parámetros de conexión FTP..."
-          SERVER="${{ secrets.FTP_SERVER || secrets.FTP_HOST || vars.FTP_SERVER || vars.FTP_HOST }}"
-          USERNAME="${{ secrets.FTP_USERNAME || secrets.FTP_USER || vars.FTP_USERNAME || vars.FTP_USER }}"
-          PASSWORD="${{ secrets.FTP_PASSWORD }}"
-
-          if [ -z "$SERVER" ]; then
-            echo "::error::Falta configurar el Host/Servidor FTP (crear Secret o Variable 'FTP_SERVER' o 'FTP_HOST' en GitHub Settings -> Secrets and variables -> Actions)."
-            exit 1
-          fi
-
-          if [ -z "$USERNAME" ]; then
-            echo "::error::Falta configurar el Usuario FTP (crear Secret o Variable 'FTP_USERNAME' o 'FTP_USER' en GitHub Settings -> Secrets and variables -> Actions)."
-            exit 1
-          fi
-
-          if [ -z "$PASSWORD" ]; then
-            echo "::error::Falta configurar la Contraseña FTP (crear Secret 'FTP_PASSWORD' en GitHub Settings -> Secrets and variables -> Actions)."
-            exit 1
-          fi
-
-          echo "✅ Todas las credenciales requeridas están presentes."
-
-      - name: 🚀 Sync files via FTP to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER || secrets.FTP_HOST || vars.FTP_SERVER || vars.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME || secrets.FTP_USER || vars.FTP_USERNAME || vars.FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT || vars.FTP_PORT || '21' }}
-          protocol: ${{ secrets.FTP_PROTOCOL || vars.FTP_PROTOCOL || 'ftps' }}
-          security: ${{ secrets.FTP_SECURITY || vars.FTP_SECURITY || 'loose' }}
-          timeout: 600000
-          log-level: verbose
-          local-dir: ./dist/
-          server-dir: ${{ secrets.FTP_SERVER_DIR || vars.FTP_SERVER_DIR || 'domains/unke.com.ar/public_html/elgalpon/' }}
-          dangerous-clean-slate: false
+      - name: 🚀 Deploy to Hostinger (Smart Auto-Detection & Sync)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER || secrets.FTP_HOST || vars.FTP_SERVER || vars.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME || secrets.FTP_USER || vars.FTP_USERNAME || vars.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT || vars.FTP_PORT || '21' }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR || vars.FTP_SERVER_DIR || '' }}
+        run: npm run deploy:hostinger

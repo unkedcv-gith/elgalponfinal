@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.15",
-  "updatedAt": "2026-09-30T21:35:39Z",
-  "summary": "Configuración del workflow de despliegue optimizada para aceptar secretos o variables de GitHub Actions con compatibilidad completa para Hostinger FTP/FTPS."
+  "version": "1.0.17",
+  "updatedAt": "2026-09-30T23:26:44Z",
+  "summary": "Creado archivo DaycarePricingGrid.tsx como shell seguro que retorna null para asegurar compatibilidad de resolución con versiones antiguas en GitHub sin renderizar nada."
 }
