@@ -14,28 +14,48 @@ jobs:
     steps:
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: ⚙️ Use Node.js LTS
+      - name: ⚙️ Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: 📦 Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: 🏗️ Build Project
         run: npm run build
 
+      - name: 🔍 Verify Required Secrets
+        run: |
+          echo "Verificando variables secretas para FTP..."
+          if [ -z "${{ secrets.FTP_SERVER || secrets.FTP_HOST }}" ]; then
+            echo "::error::Falta el Secret FTP_SERVER (o FTP_HOST) en GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          if [ -z "${{ secrets.FTP_USERNAME || secrets.FTP_USER }}" ]; then
+            echo "::error::Falta el Secret FTP_USERNAME (o FTP_USER) en GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          if [ -z "${{ secrets.FTP_PASSWORD }}" ]; then
+            echo "::error::Falta el Secret FTP_PASSWORD en GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "✅ Todos los secretos esenciales de FTP están configurados."
+
       - name: 🚀 Sync files via FTP to Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
+          server: ${{ secrets.FTP_SERVER || secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME || secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT || 21 }}
-          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
+          port: ${{ secrets.FTP_PORT || '21' }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
           security: ${{ secrets.FTP_SECURITY || 'loose' }}
+          timeout: 600000
           log-level: verbose
           local-dir: ./dist/
-          server-dir: /domains/unke.com.ar/public_html/elgalpon/
+          server-dir: ${{ secrets.FTP_SERVER_DIR || 'domains/unke.com.ar/public_html/elgalpon/' }}
           dangerous-clean-slate: false
