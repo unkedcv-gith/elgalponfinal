@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.18",
-  "updatedAt": "2026-09-30T23:32:18Z",
-  "summary": "Eliminados flujos de trabajo de GitHub Actions obsoletos (.github) ya que Hostinger se conecta directamente al repositorio mediante integración de Git con implementación automática."
+  "version": "1.0.19",
+  "updatedAt": "2026-09-30T23:36:17Z",
+  "summary": "Restaurado archivo de despliegue deploy.yml para permitir la ejecución manual y automática de deploys a Hostinger a través de GitHub Actions."
 }
