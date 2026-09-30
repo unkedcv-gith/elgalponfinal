@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.17",
-  "updatedAt": "2026-09-30T23:26:44Z",
-  "summary": "Creado archivo DaycarePricingGrid.tsx como shell seguro que retorna null para asegurar compatibilidad de resolución con versiones antiguas en GitHub sin renderizar nada."
+  "version": "1.0.18",
+  "updatedAt": "2026-09-30T23:32:18Z",
+  "summary": "Eliminados flujos de trabajo de GitHub Actions obsoletos (.github) ya que Hostinger se conecta directamente al repositorio mediante integración de Git con implementación automática."
 }
