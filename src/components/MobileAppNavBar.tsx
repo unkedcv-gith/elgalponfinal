@@ -76,7 +76,7 @@ export const MobileAppNavBar: React.FC<MobileAppNavBarProps> = ({ onOpenBooking 
   return (
     <nav 
       aria-label="Navegación tipo App" 
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-zinc-950/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.9)] pb-[max(env(safe-area-inset-bottom),6px)] pt-1.5 transition-all"
+      className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-zinc-950 border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.9)] pb-[max(env(safe-area-inset-bottom),6px)] pt-1.5 transition-all"
     >
       <div className="max-w-md mx-auto px-2 grid grid-cols-5 items-center justify-around">
         

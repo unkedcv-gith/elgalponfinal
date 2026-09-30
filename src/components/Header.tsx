@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`sticky top-0 z-40 w-full px-3.5 sm:px-6 lg:px-8 transition-all duration-300 bg-black/75 backdrop-blur-xl border-b border-white/10 pt-[max(env(safe-area-inset-top),6px)] ${isScrolled ? 'pb-1.5' : 'pb-2.5 sm:pb-3'}`}>
+    <header className={`sticky top-0 z-40 w-full px-3.5 sm:px-6 lg:px-8 transition-all duration-300 bg-black md:bg-black/80 backdrop-blur-none md:backdrop-blur-xl border-b border-white/10 pt-[max(env(safe-area-inset-top),6px)] ${isScrolled ? 'pb-1.5' : 'pb-2.5 sm:pb-3'}`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-8">
         
         {/* Logo with secret long-press for admin access */}
@@ -235,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Dropdown Menu with Solid & Inverted Buttons */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 max-w-7xl mx-auto bg-zinc-950/95 border-2 border-white/15 backdrop-blur-xl rounded-2xl p-4 shadow-2xl space-y-2.5 text-sm font-bold text-white animate-fadeIn">
+        <div className="md:hidden mt-3 max-w-7xl mx-auto bg-black border-2 border-white/15 rounded-2xl p-4 shadow-2xl space-y-2.5 text-sm font-bold text-white animate-fadeIn">
           {NAV_ITEMS.map((item) => {
             const isActive = activeSection === item.id;
             return (
