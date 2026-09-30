@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Clock, Smile, Sun, Zap, Heart, Users } from 'lucide-react';
 import { DaycareSimulator } from './DaycareSimulator';
+import { DaycarePricingGrid } from './DaycarePricingGrid';
 
 export const DaycareSection: React.FC = () => {
   return (
@@ -105,6 +106,9 @@ export const DaycareSection: React.FC = () => {
 
           {/* Interactive Pricing Simulator for Espacio UP seamlessly embedded */}
           <DaycareSimulator embedded />
+
+          {/* Grilla Completa de Días, Horas y Precios Mensuales */}
+          <DaycarePricingGrid />
 
         </div>
 

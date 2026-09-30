@@ -75,11 +75,11 @@ export const AdminPricingManager: React.FC<AdminPricingManagerProps> = ({ isSupe
   const handleDaycarePriceChange = (days: number, hours: number, value: string) => {
     const num = parseInt(value, 10) || 0;
     setPricing((prev) => {
-      const exists = prev.daycare.options.some((o) => o.days === days && o.hours === hours);
+      const exists = prev.daycare.options.some((o) => o.days === days && Math.abs(o.hours - hours) < 0.01);
       let updatedOptions: DaycarePricingOption[];
       if (exists) {
         updatedOptions = prev.daycare.options.map((o) =>
-          o.days === days && o.hours === hours ? { ...o, price: num } : o
+          o.days === days && Math.abs(o.hours - hours) < 0.01 ? { ...o, price: num } : o
         );
       } else {
         updatedOptions = [...prev.daycare.options, { days, hours, price: num }];
@@ -529,16 +529,17 @@ export const AdminPricingManager: React.FC<AdminPricingManagerProps> = ({ isSupe
                     <span>Plan Mensual para {selectedDayTab} {selectedDayTab === 1 ? 'día por semana' : 'días por semana'}</span>
                   </h4>
                   <span className="text-xs text-zinc-400 font-medium">
-                    {selectedDayTab === 1 ? '5 opciones de permanencia' : '4 opciones de permanencia'}
+                    {selectedDayTab === 5 ? '10 opciones de permanencia (1 a 9 ½ hs)' : selectedDayTab === 1 ? '5 opciones de permanencia (1 a 5 hs)' : '4 opciones de permanencia (1 a 4 hs)'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {(selectedDayTab === 1 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]).map((hours) => {
+                  {(selectedDayTab === 5 ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 9.5] : selectedDayTab === 1 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4]).map((hours) => {
                     const opt = pricing.daycare.options.find(
-                      (o) => o.days === selectedDayTab && o.hours === hours
+                      (o) => o.days === selectedDayTab && Math.abs(o.hours - hours) < 0.01
                     );
                     const currentVal = opt ? opt.price : 0;
+                    const hoursTitle = hours === 9.5 ? '9 ½ horas diarias' : hours === 1 ? '1 hora diaria' : `${hours} horas diarias`;
 
                     return (
                       <div
@@ -547,7 +548,7 @@ export const AdminPricingManager: React.FC<AdminPricingManagerProps> = ({ isSupe
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-heading font-black text-xs text-white uppercase">
-                            {hours} {hours === 1 ? 'hora diaria' : 'horas diarias'}
+                            {hoursTitle}
                           </span>
                           <span className="text-[11px] font-bold text-[#F2C700]">
                             {formatCurrency(currentVal)}

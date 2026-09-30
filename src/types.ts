@@ -246,6 +246,7 @@ export interface PricingSettings {
     options: DaycarePricingOption[];
     dailyRates: DaycareDailyOption[];
   };
+  daycareVersion?: number;
   birthdays: {
     depositAmount: number;
     monthlyBasePrices: BirthdayMonthPrice[];

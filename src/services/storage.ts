@@ -1,4 +1,4 @@
-import { Reservation, BlockedDate, Branch, AppUser, Inquiry, UserRole, LiabilityWaiver, PricingSettings, BirthdayAdditionalPrice, BirthdayMonthPrice, CalendarBlock, CalendarBlockType, DaycareDailyOption } from '../types';
+import { Reservation, BlockedDate, Branch, AppUser, Inquiry, UserRole, LiabilityWaiver, PricingSettings, BirthdayAdditionalPrice, BirthdayMonthPrice, CalendarBlock, CalendarBlockType, DaycareDailyOption, DaycarePricingOption } from '../types';
 import { 
   INITIAL_RESERVATIONS, 
   INITIAL_BLOCKED_DATES, 
@@ -6,6 +6,7 @@ import {
   INITIAL_USERS, 
   INITIAL_INQUIRIES,
   INITIAL_PRICING_SETTINGS,
+  INITIAL_DAYCARE_OPTIONS,
   INITIAL_CALLE5_ADDITIONALS,
   INITIAL_CALLE13_ADDITIONALS,
   INITIAL_BIRTHDAY_MONTHS,
@@ -1667,19 +1668,29 @@ export const normalizePricingSettings = (parsed?: any): PricingSettings => {
     };
   });
 
+  const isUpToDateDaycare = parsed?.daycareVersion === 2;
+  const rawDaycareOptions = Array.isArray(parsed?.daycare?.options) ? parsed.daycare.options : [];
+  const daycareOptionsToUse: DaycarePricingOption[] = (!isUpToDateDaycare || rawDaycareOptions.length < INITIAL_DAYCARE_OPTIONS.length)
+    ? INITIAL_DAYCARE_OPTIONS
+    : INITIAL_DAYCARE_OPTIONS.map((defOpt) => {
+        const found = rawDaycareOptions.find(
+          (o: any) => o.days === defOpt.days && Math.abs(o.hours - defOpt.hours) < 0.01
+        );
+        return (found && typeof found.price === 'number') ? found : defOpt;
+      });
+
   return {
     fitness: {
       onceAWeek: typeof parsed?.fitness?.onceAWeek === 'number' ? parsed.fitness.onceAWeek : INITIAL_PRICING_SETTINGS.fitness.onceAWeek,
       twiceAWeek: typeof parsed?.fitness?.twiceAWeek === 'number' ? parsed.fitness.twiceAWeek : INITIAL_PRICING_SETTINGS.fitness.twiceAWeek,
     },
     daycare: {
-      options: Array.isArray(parsed?.daycare?.options) && parsed.daycare.options.length > 0
-        ? parsed.daycare.options
-        : INITIAL_PRICING_SETTINGS.daycare.options,
+      options: daycareOptionsToUse,
       dailyRates: Array.isArray(parsed?.daycare?.dailyRates) && parsed.daycare.dailyRates.length > 0
         ? parsed.daycare.dailyRates
         : INITIAL_PRICING_SETTINGS.daycare.dailyRates,
     },
+    daycareVersion: 2,
     birthdays: {
       depositAmount: typeof parsed?.birthdays?.depositAmount === 'number'
         ? parsed.birthdays.depositAmount
@@ -1702,7 +1713,11 @@ export const getPricingSettings = (): PricingSettings => {
       return INITIAL_PRICING_SETTINGS;
     }
     const parsed = JSON.parse(data);
-    return normalizePricingSettings(parsed);
+    const normalized = normalizePricingSettings(parsed);
+    if (parsed?.daycareVersion !== 2) {
+      localStorage.setItem(PRICING_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch {
     return INITIAL_PRICING_SETTINGS;
   }

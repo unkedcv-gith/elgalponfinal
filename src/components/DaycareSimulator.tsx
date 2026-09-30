@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calculator, 
   Clock, 
@@ -9,7 +9,9 @@ import {
   ShieldCheck,
   CalendarDays,
   SlidersHorizontal,
-  Zap
+  Zap,
+  Table,
+  X
 } from 'lucide-react';
 import { getPricingSettings, formatCurrency, listenToPricingSettings } from '../services/storage';
 import { BRAND_INFO, INITIAL_DAYCARE_DAILY_RATES } from '../data/initialData';
@@ -25,12 +27,13 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
   // Modality: 'daily' (Por Día) or 'monthly' (Por Mes)
   const [simulationMode, setSimulationMode] = useState<'daily' | 'monthly'>('daily');
   
-  // Daily scheme states (Por un día y 1, 2, 3 o 4 horas)
+  // Daily scheme states (Por un día y 1 a 10 horas)
   const [selectedDailyHours, setSelectedDailyHours] = useState<number>(2);
 
-  // Monthly scheme states (Tal cual estaba antes)
-  const [selectedDays, setSelectedDays] = useState<number>(3);
-  const [selectedHours, setSelectedHours] = useState<number>(2);
+  // Monthly scheme states
+  const [selectedDays, setSelectedDays] = useState<number>(5);
+  const [selectedHours, setSelectedHours] = useState<number>(4);
+  const [showFullTableModal, setShowFullTableModal] = useState<boolean>(false);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -47,15 +50,41 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
     };
   }, []);
 
-  // Allowed hour options for monthly depend on days: 5hs is available for 1 day
-  const monthlyHourOptions = selectedDays === 1 ? [1, 2, 3, 4, 5] : [1, 2, 3, 4];
+  // Allowed hour options for monthly depend on days:
+  // 5 days: 1 to 9.5 hs (10 options)
+  // 4 days: 1 to 4 hs
+  // 3 days: 1 to 4 hs
+  // 2 days: 1 to 4 hs
+  // 1 day: 1 to 5 hs
+  const monthlyHourOptions = useMemo(() => {
+    if (selectedDays === 5) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 9.5];
+    if (selectedDays === 1) return [1, 2, 3, 4, 5];
+    return [1, 2, 3, 4];
+  }, [selectedDays]);
 
-  // Adjust selected monthly hours if user switches from 1 day (5hs) to multi-days
+  // Adjust selected monthly hours if user switches to a day configuration without that hour
   useEffect(() => {
-    if (selectedDays > 1 && selectedHours > 4) {
-      setSelectedHours(4);
+    const valid = monthlyHourOptions.some((h) => Math.abs(h - selectedHours) < 0.01);
+    if (!valid) {
+      // Pick 4 if available, or last option
+      if (monthlyHourOptions.includes(4)) {
+        setSelectedHours(4);
+      } else {
+        setSelectedHours(monthlyHourOptions[0] || 2);
+      }
     }
-  }, [selectedDays, selectedHours]);
+  }, [monthlyHourOptions, selectedHours]);
+
+  const formatHoursText = (h: number) => {
+    if (h === 9.5) return '9 ½ horas';
+    if (h === 1) return '1 hora';
+    return `${h} horas`;
+  };
+
+  const formatHoursLabel = (h: number) => {
+    if (h === 9.5) return '9 ½ hs';
+    return `${h} hs`;
+  };
 
   // DAILY PRICING CALCULATION
   const safeDailyRates = (pricing.daycare.dailyRates && pricing.daycare.dailyRates.length > 0)
@@ -66,7 +95,7 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
 
   // MONTHLY PRICING CALCULATION
   const currentMonthlyOption = pricing.daycare.options.find(
-    (opt) => opt.days === selectedDays && opt.hours === selectedHours
+    (opt) => opt.days === selectedDays && Math.abs(opt.hours - selectedHours) < 0.01
   );
   const calculatedMonthlyPrice = currentMonthlyOption ? currentMonthlyOption.price : 0;
 
@@ -77,9 +106,7 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
 
   const whatsappMonthlyMessage = `Hola! Estuve calculando en el simulador de la web para el Espacio UP: plan mensual de ${selectedDays} ${
     selectedDays === 1 ? 'día' : 'días'
-  } por semana (${selectedHours} ${
-    selectedHours === 1 ? 'hora' : 'horas'
-  } por día) por un valor de ${formatCurrency(calculatedMonthlyPrice)} mensual. ¿Tienen vacantes disponibles?`;
+  } por semana (${formatHoursText(selectedHours)} por día) por un valor de ${formatCurrency(calculatedMonthlyPrice)} mensual. ¿Tienen vacantes disponibles?`;
 
   const currentWhatsappMessage = simulationMode === 'daily' ? whatsappDailyMessage : whatsappMonthlyMessage;
   const whatsappHref = `${BRAND_INFO.whatsappUrl}?text=${encodeURIComponent(currentWhatsappMessage)}`;
@@ -318,25 +345,48 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
 
               {/* Hours Selector */}
               <div className="space-y-2">
-                <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-[#F2C700]" /> 3. Cantidad de Horas Diarias
-                </label>
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-[#F2C700]" /> 3. Cantidad de Horas Diarias
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowFullTableModal(true)}
+                    className="text-[11px] font-bold text-[#F2C700] hover:text-white flex items-center gap-1.5 bg-zinc-900/90 px-2.5 py-1 rounded-lg border border-white/10 hover:border-[#F2C700]/50 transition-all cursor-pointer"
+                  >
+                    <Table className="w-3.5 h-3.5 text-[#F2C700]" />
+                    <span>Ver tabla completa</span>
+                  </button>
+                </div>
+
+                <div className={`grid gap-1.5 sm:gap-2 ${
+                  selectedDays === 5
+                    ? 'grid-cols-5 sm:grid-cols-5 md:grid-cols-10'
+                    : selectedDays === 1
+                      ? 'grid-cols-5'
+                      : 'grid-cols-4'
+                }`}>
                   {monthlyHourOptions.map((h) => {
-                    const isSelected = selectedHours === h;
+                    const isSelected = Math.abs(selectedHours - h) < 0.01;
+                    const opt = pricing.daycare.options.find(
+                      (o) => o.days === selectedDays && Math.abs(o.hours - h) < 0.01
+                    );
+                    const price = opt ? opt.price : 0;
                     return (
                       <button
                         key={`monthly-hour-${h}`}
                         type="button"
                         onClick={() => setSelectedHours(h)}
-                        className={`p-3 rounded-xl font-heading font-black text-xs sm:text-sm uppercase transition-all flex flex-col items-center justify-center cursor-pointer ${
+                        className={`p-2 sm:p-2.5 rounded-xl font-heading font-black text-xs sm:text-sm uppercase transition-all flex flex-col items-center justify-center cursor-pointer ${
                           isSelected
                             ? 'bg-[#F2C700] text-black font-black shadow-[0_0_15px_rgba(242,199,0,0.5)] scale-102 border-2 border-white'
                             : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 border border-white/10'
                         }`}
                       >
-                        <span>{h} hs</span>
-                        <span className="text-[9px] font-normal tracking-tight">por día</span>
+                        <span>{formatHoursLabel(h)}</span>
+                        <span className="text-[9px] font-normal tracking-tight opacity-90">
+                          {price > 0 ? formatCurrency(price) : 'por día'}
+                        </span>
                       </button>
                     );
                   })}
@@ -431,6 +481,113 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
           </a>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL: TABLA COMPLETA DE ARANCELES MENSUALES                             */}
+      {/* ========================================================================= */}
+      {showFullTableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-zinc-950 border-2 border-[#F2C700] rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col text-white">
+            
+            {/* Top Accent Strip */}
+            <div className="h-2 w-full bg-gradient-to-r from-[#A3BA13] via-[#F2C700] to-[#1EB8BF]" />
+
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#F2C700] text-black flex items-center justify-center font-black">
+                  <Table className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-base sm:text-lg uppercase text-white tracking-wide">
+                    Aranceles Mensuales Espacio UP
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 font-medium">
+                    Hacé clic en cualquier fila para seleccionarla en el simulador
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFullTableModal(false)}
+                className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Spreadsheet Table */}
+            <div className="overflow-y-auto p-4 sm:p-5 flex-1">
+              <div className="rounded-2xl border-2 border-white/20 overflow-hidden shadow-lg bg-zinc-950">
+                {/* Header row: MENSUAL */}
+                <div className="bg-zinc-800 text-white font-heading font-black text-center py-2.5 text-sm uppercase tracking-widest border-b border-white/20">
+                  MENSUAL
+                </div>
+
+                {/* Subheader columns */}
+                <div className="grid grid-cols-3 bg-[#7A00FF] text-white font-heading font-black text-xs sm:text-sm uppercase py-2.5 px-3 text-center border-b-2 border-zinc-900 tracking-wider">
+                  <div>DÍAS</div>
+                  <div>HORAS</div>
+                  <div>PRECIO</div>
+                </div>
+
+                {/* Options Table Body */}
+                <div className="divide-y divide-white/10 font-sans">
+                  {pricing.daycare.options.map((opt, idx) => {
+                    const isSelected = selectedDays === opt.days && Math.abs(selectedHours - opt.hours) < 0.01;
+                    const hoursFormatted = opt.hours === 9.5 ? '9 1/2hs' : `${opt.hours}hs`;
+
+                    return (
+                      <button
+                        key={`modal-opt-${opt.days}-${opt.hours}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDays(opt.days);
+                          setSelectedHours(opt.hours);
+                          setShowFullTableModal(false);
+                        }}
+                        className={`w-full grid grid-cols-3 py-2.5 px-3 text-center items-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#F2C700]/25 text-[#F2C700] font-black border-l-4 border-[#F2C700]'
+                            : idx % 2 === 0
+                              ? 'bg-zinc-900/60 hover:bg-zinc-800 text-white'
+                              : 'bg-black/50 hover:bg-zinc-800 text-zinc-200'
+                        }`}
+                      >
+                        <div className="font-heading font-black text-sm">
+                          {opt.days}
+                        </div>
+                        <div className="font-bold text-xs sm:text-sm">
+                          {hoursFormatted}
+                        </div>
+                        <div className="font-mono font-black text-xs sm:text-sm text-right pr-4 text-emerald-400">
+                          {formatCurrency(opt.price)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 flex items-center justify-between gap-3 bg-zinc-900/70">
+              <span className="text-[11px] text-zinc-400">
+                Aranceles oficiales actualizados
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFullTableModal(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

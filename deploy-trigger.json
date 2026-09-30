@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.4",
-  "updatedAt": "2026-09-30T12:50:00Z",
-  "summary": "Pantalla y mensaje de confirmación de contacto a la brevedad tras completar y continuar en el formulario de términos de cumpleaños."
+  "version": "1.0.10",
+  "updatedAt": "2026-09-30T17:44:00Z",
+  "summary": "Reemplazo de íconos Sparkles por íconos específicos y apropiados (Cake para cumpleaños y PartyPopper para tarjeta de invitación festiva)."
 }

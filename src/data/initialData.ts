@@ -341,32 +341,38 @@ export const INITIAL_BLOCKED_DATES: { branchId?: string; date: string; reason: s
 ];
 
 export const INITIAL_DAYCARE_OPTIONS: DaycarePricingOption[] = [
-  // 5 días
-  { days: 5, hours: 1, price: 90000 },
-  { days: 5, hours: 2, price: 118000 },
-  { days: 5, hours: 3, price: 141000 },
-  { days: 5, hours: 4, price: 158000 },
-  // 4 días
-  { days: 4, hours: 1, price: 87000 },
-  { days: 4, hours: 2, price: 118000 },
-  { days: 4, hours: 3, price: 124200 },
-  { days: 4, hours: 4, price: 155000 },
-  // 3 días
-  { days: 3, hours: 1, price: 66000 },
-  { days: 3, hours: 2, price: 96000 },
-  { days: 3, hours: 3, price: 111200 },
-  { days: 3, hours: 4, price: 124200 },
-  // 2 días
-  { days: 2, hours: 1, price: 52000 },
-  { days: 2, hours: 2, price: 87000 },
-  { days: 2, hours: 3, price: 96000 },
-  { days: 2, hours: 4, price: 118000 },
-  // 1 día
-  { days: 1, hours: 1, price: 34000 },
-  { days: 1, hours: 2, price: 52000 },
-  { days: 1, hours: 3, price: 66000 },
-  { days: 1, hours: 4, price: 87000 },
-  { days: 1, hours: 5, price: 90000 },
+  // 5 días (10 opciones: de 1hs a 9 1/2hs)
+  { days: 5, hours: 1, price: 97200 },
+  { days: 5, hours: 2, price: 127440 },
+  { days: 5, hours: 3, price: 152280 },
+  { days: 5, hours: 4, price: 170640 },
+  { days: 5, hours: 5, price: 210600 },
+  { days: 5, hours: 6, price: 250775 },
+  { days: 5, hours: 7, price: 290300 },
+  { days: 5, hours: 8, price: 329180 },
+  { days: 5, hours: 9, price: 368380 },
+  { days: 5, hours: 9.5, price: 387820 },
+  // 4 días (4 opciones)
+  { days: 4, hours: 1, price: 93960 },
+  { days: 4, hours: 2, price: 127440 },
+  { days: 4, hours: 3, price: 134136 },
+  { days: 4, hours: 4, price: 155520 },
+  // 3 días (4 opciones)
+  { days: 3, hours: 1, price: 71280 },
+  { days: 3, hours: 2, price: 103680 },
+  { days: 3, hours: 3, price: 126360 },
+  { days: 3, hours: 4, price: 134136 },
+  // 2 días (4 opciones)
+  { days: 2, hours: 1, price: 56160 },
+  { days: 2, hours: 2, price: 93960 },
+  { days: 2, hours: 3, price: 103680 },
+  { days: 2, hours: 4, price: 127440 },
+  // 1 día (5 opciones)
+  { days: 1, hours: 1, price: 36720 },
+  { days: 1, hours: 2, price: 56160 },
+  { days: 1, hours: 3, price: 71280 },
+  { days: 1, hours: 4, price: 93960 },
+  { days: 1, hours: 5, price: 97200 },
 ];
 
 export const INITIAL_DAYCARE_DAILY_RATES: DaycareDailyOption[] = [
@@ -467,6 +473,7 @@ export const INITIAL_PRICING_SETTINGS: PricingSettings = {
     options: INITIAL_DAYCARE_OPTIONS,
     dailyRates: INITIAL_DAYCARE_DAILY_RATES,
   },
+  daycareVersion: 2,
   birthdays: {
     depositAmount: 100000,
     monthlyBasePrices: INITIAL_BIRTHDAY_MONTHS,

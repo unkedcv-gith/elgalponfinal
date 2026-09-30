@@ -56,11 +56,11 @@ export const FloatingChatbot: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-20 right-3.5 sm:right-6 md:bottom-6 z-40 flex flex-col items-end">
       
       {/* Chat Window */}
       {isOpen && (
-        <div className="bg-black/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl w-[90vw] sm:w-[350px] h-[450px] mb-4 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
+        <div className="bg-black/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl w-[90vw] sm:w-[350px] h-[450px] mb-3 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
           
           {/* Header */}
           <div className="bg-gradient-to-r from-zinc-900 to-black border-b border-white/10 p-4 flex items-center justify-between">

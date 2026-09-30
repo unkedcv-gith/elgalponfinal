@@ -147,8 +147,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`sticky top-0 z-40 w-full px-4 sm:px-6 lg:px-8 transition-all duration-300 bg-black/60 backdrop-blur-lg border-b border-white/10 ${isScrolled ? 'py-1.5' : 'py-3'}`}>
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 sm:gap-8">
+    <header className={`sticky top-0 z-40 w-full px-3.5 sm:px-6 lg:px-8 transition-all duration-300 bg-black/75 backdrop-blur-xl border-b border-white/10 pt-[max(env(safe-area-inset-top),6px)] ${isScrolled ? 'pb-1.5' : 'pb-2.5 sm:pb-3'}`}>
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-8">
         
         {/* Logo with secret long-press for admin access */}
         <div 
@@ -166,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
             src={logoBlanca} 
             alt="El Galpón Logo" 
             draggable={false}
-            className={`w-auto object-contain transition-all duration-300 drop-shadow pointer-events-none ${isScrolled ? 'h-9 sm:h-11 max-w-[150px] sm:max-w-[200px]' : 'h-11 sm:h-14 max-w-[190px] sm:max-w-[260px] group-hover:scale-105'}`} 
+            className={`w-auto object-contain transition-all duration-300 drop-shadow pointer-events-none ${isScrolled ? 'h-8 sm:h-11 max-w-[135px] sm:max-w-[200px]' : 'h-10 sm:h-14 max-w-[160px] sm:max-w-[260px] group-hover:scale-105'}`} 
           />
         </div>
 
@@ -210,15 +210,24 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Mobile / Tablet Menu Button */}
-        <div className="lg:hidden flex items-center">
+        {/* Mobile / Tablet Menu Button + Quick Reserve Action */}
+        <div className="lg:hidden flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenBooking}
+            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F2C700] to-[#A3BA13] text-black font-heading font-black text-[11px] uppercase tracking-wide flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+          >
+            <Calendar className="w-3.5 h-3.5 text-black shrink-0" />
+            <span>Turnos</span>
+          </button>
+
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl bg-zinc-950 border-2 border-white/20 text-white hover:border-[#1EB8BF] hover:text-[#1EB8BF] transition-all"
+            className="p-2 rounded-xl bg-zinc-950 border-2 border-white/20 text-white hover:border-[#1EB8BF] hover:text-[#1EB8BF] transition-all cursor-pointer"
             title="Abrir menú"
             aria-label="Abrir menú de navegación"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5 text-[#ED3078]" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 

@@ -13,6 +13,8 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LiabilityWaiverFormModal } from './components/LiabilityWaiverFormModal';
 import { FloatingChatbot } from './components/FloatingChatbot';
+import { MobileAppNavBar } from './components/MobileAppNavBar';
+import { MobileAppInstallPrompt } from './components/MobileAppInstallPrompt';
 import { isAdminAuthenticated, syncWithRemoteFirestore, logoutUser } from './services/storage';
 
 export default function App() {
@@ -148,6 +150,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-[#ED3078] selection:text-white antialiased relative">
       
+      {/* Mobile App Install Prompt Card */}
+      <MobileAppInstallPrompt />
+
       {/* Main Header */}
       <Header
         onOpenBooking={handleOpenBooking}
@@ -156,8 +161,8 @@ export default function App() {
         isAdminLoggedIn={isAdminLoggedIn}
       />
 
-      {/* Main Content Sections */}
-      <main>
+      {/* Main Content Sections with bottom space for mobile app nav bar */}
+      <main className="pb-16 md:pb-0">
         <Hero
           onOpenBooking={handleOpenBooking}
         />
@@ -182,11 +187,16 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <ContactFooter
-        onOpenBooking={handleOpenBooking}
-        onOpenAdmin={handleOpenAdminTrigger}
-        onOpenWaiver={handleOpenGeneralWaiver}
-      />
+      <div className="pb-14 md:pb-0">
+        <ContactFooter
+          onOpenBooking={handleOpenBooking}
+          onOpenAdmin={handleOpenAdminTrigger}
+          onOpenWaiver={handleOpenGeneralWaiver}
+        />
+      </div>
+
+      {/* Mobile Native-Style App Bottom Navigation Bar */}
+      <MobileAppNavBar onOpenBooking={handleOpenBooking} />
 
       <FloatingChatbot />
 
@@ -238,12 +248,12 @@ export default function App() {
                   Solicitud Recibida
                 </span>
                 <h4 className="font-heading font-black text-sm uppercase text-white">
-                  A la brevedad nos ponemos en contacto con vos
+                  A la brevedad nos ponemos en contacto con vos y te estaremos enviando la tarjetita virtual para tus invitados
                 </h4>
                 <p className="text-xs text-zinc-300 leading-relaxed">
                   {followUpBanner.childName
-                    ? `Hemos recibido los datos para el cumple de ${followUpBanner.childName}. Te escribiremos por WhatsApp para confirmar y coordinar los detalles.`
-                    : 'Hemos recibido tu formulario. Nos comunicaremos con vos por WhatsApp a la brevedad para coordinar todos los detalles.'}
+                    ? `Hemos recibido los datos para el cumple de ${followUpBanner.childName}. Te escribiremos por WhatsApp para confirmar los detalles y enviarte la tarjetita virtual para tus invitados.`
+                    : 'Hemos recibido tu formulario. Nos comunicaremos con vos por WhatsApp a la brevedad para coordinar todos los detalles y enviarte la tarjetita virtual para tus invitados.'}
                 </p>
               </div>
             </div>

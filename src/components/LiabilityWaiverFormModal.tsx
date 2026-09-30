@@ -25,7 +25,8 @@ import {
   Copy,
   DollarSign,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  PartyPopper
 } from 'lucide-react';
 import { Reservation, LiabilityWaiver } from '../types';
 import { 
@@ -529,7 +530,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
                   ¡Formulario Enviado con Éxito!
                 </span>
                 <h3 className="font-heading font-black text-2xl sm:text-3xl text-white uppercase tracking-tight">
-                  A la brevedad nos ponemos en contacto con vos
+                  A la brevedad nos ponemos en contacto con vos y te estaremos enviando la tarjetita virtual para tus invitados
                 </h3>
                 <p className="text-sm sm:text-base text-zinc-300 font-medium leading-relaxed">
                   ¡Muchas gracias por completar los Términos y Condiciones para el cumpleaños de <strong className="text-[#F2C700]">{childFullName || reservation?.childName}</strong>!
@@ -546,6 +547,18 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
                     <h5 className="font-black text-white uppercase text-xs sm:text-sm">Revisión de datos y comprobante</h5>
                     <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
                       Nuestro equipo revisará la información enviada y la recepción de la seña para asegurar que todo esté en orden.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 border-t border-zinc-800 pt-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#ED3078]/20 border border-[#ED3078]/50 flex items-center justify-center text-[#ED3078] shrink-0 mt-0.5">
+                    <PartyPopper className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-black text-white uppercase text-xs sm:text-sm">Tarjetita Virtual de Invitación</h5>
+                    <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
+                      Te enviaremos la tarjetita virtual personalizada del cumple para que puedas compartirla fácilmente con tus invitados por WhatsApp.
                     </p>
                   </div>
                 </div>
@@ -615,9 +628,9 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
                   Los datos han sido incorporados correctamente a la reserva.
                 </p>
 
-                <div className="bg-[#1EB8BF]/15 border border-[#1EB8BF]/40 rounded-2xl p-3 max-w-md mx-auto text-center mt-2 space-y-0.5">
+                <div className="bg-[#1EB8BF]/15 border border-[#1EB8BF]/40 rounded-2xl p-3.5 max-w-md mx-auto text-center mt-2 space-y-1">
                   <p className="text-xs sm:text-sm font-black text-white flex items-center justify-center gap-1.5 uppercase">
-                    <CheckCircle2 className="w-4 h-4 text-[#1EB8BF]" /> A la brevedad nos ponemos en contacto con vos
+                    <CheckCircle2 className="w-4 h-4 text-[#1EB8BF] shrink-0" /> A la brevedad nos ponemos en contacto con vos y te estaremos enviando la tarjetita virtual para tus invitados
                   </p>
                   <p className="text-[11px] text-zinc-300">
                     Revisaremos los datos y te confirmaremos los pasos siguientes por WhatsApp.

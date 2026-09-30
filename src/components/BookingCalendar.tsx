@@ -428,11 +428,22 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-black font-heading font-black text-sm uppercase py-4 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(37,211,102,0.4)] transition-all cursor-pointer"
+                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-black font-heading font-black text-sm sm:text-base uppercase py-4 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(37,211,102,0.4)] transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
               >
-                <MessageCircle className="w-5 h-5 text-black" />
+                <MessageCircle className="w-5 h-5 text-black shrink-0" />
                 <span>Enviar reserva de turno</span>
               </a>
+
+              {/* Mensaje llamativo debajo del botón */}
+              <div className="w-full py-3.5 px-4 rounded-2xl bg-zinc-950/90 border-2 border-[#F2C700] shadow-[0_0_25px_rgba(242,199,0,0.35)] text-center animate-in fade-in duration-300">
+                <p className="font-heading font-black text-sm sm:text-base uppercase tracking-wider text-[#F2C700] flex items-center justify-center gap-2">
+                  <Clock className="w-4 h-4 text-[#F2C700] shrink-0" />
+                  <span>¡En breve nos ponemos en contacto con vos!</span>
+                </p>
+                <p className="text-xs text-zinc-300 font-medium mt-1">
+                  Revisaremos tu solicitud y nos comunicaremos por WhatsApp para coordinar los detalles y enviarte la tarjeta virtual.
+                </p>
+              </div>
 
               <button
                 onClick={handleResetForm}
