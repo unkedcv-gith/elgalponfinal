@@ -9,9 +9,7 @@ import {
   ShieldCheck,
   CalendarDays,
   SlidersHorizontal,
-  Zap,
-  Table,
-  X
+  Zap
 } from 'lucide-react';
 import { getPricingSettings, formatCurrency, listenToPricingSettings } from '../services/storage';
 import { BRAND_INFO, INITIAL_DAYCARE_DAILY_RATES } from '../data/initialData';
@@ -33,7 +31,6 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
   // Monthly scheme states
   const [selectedDays, setSelectedDays] = useState<number>(5);
   const [selectedHours, setSelectedHours] = useState<number>(4);
-  const [showFullTableModal, setShowFullTableModal] = useState<boolean>(false);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -349,14 +346,6 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
                   <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-[#F2C700]" /> 3. Cantidad de Horas Diarias
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowFullTableModal(true)}
-                    className="text-[11px] font-bold text-[#F2C700] hover:text-white flex items-center gap-1.5 bg-zinc-900/90 px-2.5 py-1 rounded-lg border border-white/10 hover:border-[#F2C700]/50 transition-all cursor-pointer"
-                  >
-                    <Table className="w-3.5 h-3.5 text-[#F2C700]" />
-                    <span>Ver tabla completa</span>
-                  </button>
                 </div>
 
                 <div className={`grid gap-1.5 sm:gap-2 ${
@@ -481,114 +470,8 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
           </a>
         </div>
       </div>
-
-      {/* ========================================================================= */}
-      {/* MODAL: TABLA COMPLETA DE ARANCELES MENSUALES                             */}
-      {/* ========================================================================= */}
-      {showFullTableModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg bg-zinc-950 border-2 border-[#F2C700] rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col text-white">
-            
-            {/* Top Accent Strip */}
-            <div className="h-2 w-full bg-gradient-to-r from-[#A3BA13] via-[#F2C700] to-[#1EB8BF]" />
-
-            {/* Header */}
-            <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#F2C700] text-black flex items-center justify-center font-black">
-                  <Table className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-heading font-black text-base sm:text-lg uppercase text-white tracking-wide">
-                    Aranceles Mensuales Espacio UP
-                  </h3>
-                  <p className="text-[11px] text-zinc-400 font-medium">
-                    Hacé clic en cualquier fila para seleccionarla en el simulador
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowFullTableModal(false)}
-                className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Scrollable Spreadsheet Table */}
-            <div className="overflow-y-auto p-4 sm:p-5 flex-1">
-              <div className="rounded-2xl border-2 border-white/20 overflow-hidden shadow-lg bg-zinc-950">
-                {/* Header row: MENSUAL */}
-                <div className="bg-zinc-800 text-white font-heading font-black text-center py-2.5 text-sm uppercase tracking-widest border-b border-white/20">
-                  MENSUAL
-                </div>
-
-                {/* Subheader columns */}
-                <div className="grid grid-cols-3 bg-[#7A00FF] text-white font-heading font-black text-xs sm:text-sm uppercase py-2.5 px-3 text-center border-b-2 border-zinc-900 tracking-wider">
-                  <div>DÍAS</div>
-                  <div>HORAS</div>
-                  <div>PRECIO</div>
-                </div>
-
-                {/* Options Table Body */}
-                <div className="divide-y divide-white/10 font-sans">
-                  {pricing.daycare.options.map((opt, idx) => {
-                    const isSelected = selectedDays === opt.days && Math.abs(selectedHours - opt.hours) < 0.01;
-                    const hoursFormatted = opt.hours === 9.5 ? '9 1/2hs' : `${opt.hours}hs`;
-
-                    return (
-                      <button
-                        key={`modal-opt-${opt.days}-${opt.hours}-${idx}`}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDays(opt.days);
-                          setSelectedHours(opt.hours);
-                          setShowFullTableModal(false);
-                        }}
-                        className={`w-full grid grid-cols-3 py-2.5 px-3 text-center items-center transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#F2C700]/25 text-[#F2C700] font-black border-l-4 border-[#F2C700]'
-                            : idx % 2 === 0
-                              ? 'bg-zinc-900/60 hover:bg-zinc-800 text-white'
-                              : 'bg-black/50 hover:bg-zinc-800 text-zinc-200'
-                        }`}
-                      >
-                        <div className="font-heading font-black text-sm">
-                          {opt.days}
-                        </div>
-                        <div className="font-bold text-xs sm:text-sm">
-                          {hoursFormatted}
-                        </div>
-                        <div className="font-mono font-black text-xs sm:text-sm text-right pr-4 text-emerald-400">
-                          {formatCurrency(opt.price)}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-white/10 flex items-center justify-between gap-3 bg-zinc-900/70">
-              <span className="text-[11px] text-zinc-400">
-                Aranceles oficiales actualizados
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowFullTableModal(false)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase transition-colors cursor-pointer"
-              >
-                Cerrar
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+
 

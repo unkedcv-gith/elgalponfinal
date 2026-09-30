@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.10",
-  "updatedAt": "2026-09-30T17:44:00Z",
-  "summary": "Reemplazo de íconos Sparkles por íconos específicos y apropiados (Cake para cumpleaños y PartyPopper para tarjeta de invitación festiva)."
+  "version": "1.0.11",
+  "updatedAt": "2026-09-30T17:55:30Z",
+  "summary": "Eliminación completa de la grilla/tabla estática de tarifas de UP Espacio y limpieza para dejar únicamente el simulador interactivo de aranceles por día y mes con derivación a WhatsApp."
 }
