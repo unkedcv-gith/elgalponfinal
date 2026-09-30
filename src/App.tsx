@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MessageCircle, X } from 'lucide-react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { BirthdaysSection } from './components/BirthdaysSection';
@@ -22,6 +23,7 @@ export default function App() {
   // Liability Waiver Direct URL Link State
   const [activeWaiverReservationId, setActiveWaiverReservationId] = useState<string | null>(null);
   const [isWaiverModalOpen, setIsWaiverModalOpen] = useState(false);
+  const [followUpBanner, setFollowUpBanner] = useState<{ show: boolean; childName?: string } | null>(null);
 
   useEffect(() => {
     setIsAdminLoggedIn(isAdminAuthenticated());
@@ -209,6 +211,9 @@ export default function App() {
       <LiabilityWaiverFormModal
         isOpen={isWaiverModalOpen}
         reservationId={activeWaiverReservationId}
+        onWaiverCompleted={(childName) => {
+          setFollowUpBanner({ show: true, childName });
+        }}
         onClose={() => {
           setIsWaiverModalOpen(false);
           setActiveWaiverReservationId(null);
@@ -219,6 +224,40 @@ export default function App() {
           }
         }}
       />
+
+      {/* Floating Reassurance Notification Banner */}
+      {followUpBanner?.show && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-zinc-950/95 border-2 border-[#1EB8BF] rounded-2xl p-4 shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(30,184,191,0.35)] backdrop-blur-md flex items-start justify-between gap-3 text-white">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#1EB8BF]/20 border border-[#1EB8BF] text-[#1EB8BF] flex items-center justify-center shrink-0 mt-0.5">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#1EB8BF] block">
+                  Solicitud Recibida
+                </span>
+                <h4 className="font-heading font-black text-sm uppercase text-white">
+                  A la brevedad nos ponemos en contacto con vos
+                </h4>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  {followUpBanner.childName
+                    ? `Hemos recibido los datos para el cumple de ${followUpBanner.childName}. Te escribiremos por WhatsApp para confirmar y coordinar los detalles.`
+                    : 'Hemos recibido tu formulario. Nos comunicaremos con vos por WhatsApp a la brevedad para coordinar todos los detalles.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFollowUpBanner(null)}
+              className="text-zinc-400 hover:text-white p-1 rounded-lg bg-zinc-900 border border-zinc-800 shrink-0 cursor-pointer transition-colors"
+              title="Cerrar notificación"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

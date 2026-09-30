@@ -46,6 +46,7 @@ interface LiabilityWaiverFormModalProps {
   reservationId?: string | null;
   onClose: () => void;
   onWaiverSaved?: (updatedReservation: Reservation) => void;
+  onWaiverCompleted?: (childName?: string) => void;
 }
 
 export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> = ({
@@ -53,6 +54,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
   reservationId,
   onClose,
   onWaiverSaved,
+  onWaiverCompleted,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -436,7 +438,12 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (isSubmitted || showFollowUpNotice) {
+                onWaiverCompleted?.(childFullName || reservation?.childName);
+              }
+              onClose();
+            }}
             className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Cerrar"
           >
@@ -580,7 +587,10 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
 
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    onWaiverCompleted?.(childFullName || reservation?.childName);
+                    onClose();
+                  }}
                   className="w-full sm:w-auto px-6 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-black text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <span>Entendido, volver al sitio</span>
