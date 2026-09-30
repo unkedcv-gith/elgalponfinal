@@ -60,6 +60,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
   const [isLoadingReservation, setIsLoadingReservation] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFollowUpNotice, setShowFollowUpNotice] = useState(false);
 
   // Form Fields
   const [signerFullName, setSignerFullName] = useState('');
@@ -121,6 +122,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
       setStep(1);
       setFormError('');
       setSavedSignatureDataUrl(null);
+      setShowFollowUpNotice(false);
       if (reservationId) {
         setIsLoadingReservation(true);
         fetchReservationByIdAsync(reservationId).then((found) => {
@@ -421,14 +423,14 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#A3BA13] text-black">
-                  {isSubmitted ? 'Documento Completado' : `Pantalla ${step} de 4`}
+                  {showFollowUpNotice ? 'Confirmación de Contacto' : isSubmitted ? 'Documento Completado' : `Pantalla ${step} de 4`}
                 </span>
                 <span className="text-[11px] text-zinc-400 font-bold hidden sm:inline-block">
                   {reservation?.branchName || 'El Galpón'}
                 </span>
               </div>
               <h2 className="font-heading font-black text-base sm:text-xl text-white uppercase tracking-tight">
-                Términos y Condiciones de la Reserva
+                {showFollowUpNotice ? 'Solicitud Recibida' : 'Términos y Condiciones de la Reserva'}
               </h2>
             </div>
           </div>
@@ -443,7 +445,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
         </div>
 
         {/* STEP PROGRESS BAR */}
-        {!isSubmitted && (
+        {!isSubmitted && !showFollowUpNotice && (
           <div className="bg-zinc-900/80 px-4 py-2 border-b border-zinc-800 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-1.5 w-full max-w-md">
               <div className={`h-2 flex-1 rounded-full transition-all ${step >= 1 ? 'bg-[#A3BA13]' : 'bg-zinc-800'}`} />
@@ -461,7 +463,7 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
         )}
 
         {/* 40-MINUTE HOLD STATUS BANNER */}
-        {!isSubmitted && reservation && !isReservationCircuitCompleted(reservation) && (
+        {!isSubmitted && !showFollowUpNotice && reservation && !isReservationCircuitCompleted(reservation) && (
           <div className={`px-4 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 text-xs transition-colors ${
             remainingSeconds > 0
               ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
@@ -508,7 +510,84 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
         {/* MODAL BODY */}
         <div ref={modalBodyRef} className="p-4 sm:p-6 max-h-[78vh] overflow-y-auto space-y-6">
           
-          {isSubmitted ? (
+          {showFollowUpNotice ? (
+            /* FINAL FOLLOW-UP REASSURANCE STATE (AFTER CLICKING "LISTO, CONTINUAR") */
+            <div className="py-8 px-4 text-center space-y-6 max-w-xl mx-auto animate-in fade-in zoom-in-95 duration-300">
+              <div className="w-20 h-20 rounded-full bg-[#1EB8BF]/20 border-2 border-[#1EB8BF] flex items-center justify-center text-[#1EB8BF] mx-auto shadow-lg shadow-[#1EB8BF]/20 animate-pulse">
+                <MessageCircle className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-3">
+                <span className="inline-block px-3.5 py-1 rounded-full bg-[#1EB8BF] text-black text-xs font-black uppercase tracking-wider">
+                  ¡Formulario Enviado con Éxito!
+                </span>
+                <h3 className="font-heading font-black text-2xl sm:text-3xl text-white uppercase tracking-tight">
+                  A la brevedad nos ponemos en contacto con vos
+                </h3>
+                <p className="text-sm sm:text-base text-zinc-300 font-medium leading-relaxed">
+                  ¡Muchas gracias por completar los Términos y Condiciones para el cumpleaños de <strong className="text-[#F2C700]">{childFullName || reservation?.childName}</strong>!
+                </p>
+              </div>
+
+              {/* Explanatory cards */}
+              <div className="bg-black/70 border border-zinc-800 rounded-2xl p-5 text-left space-y-4 text-xs sm:text-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#A3BA13]/20 border border-[#A3BA13]/50 flex items-center justify-center text-[#A3BA13] shrink-0 mt-0.5">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-black text-white uppercase text-xs sm:text-sm">Revisión de datos y comprobante</h5>
+                    <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
+                      Nuestro equipo revisará la información enviada y la recepción de la seña para asegurar que todo esté en orden.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 border-t border-zinc-800 pt-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#1EB8BF]/20 border border-[#1EB8BF]/50 flex items-center justify-center text-[#1EB8BF] shrink-0 mt-0.5">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-black text-white uppercase text-xs sm:text-sm">Contacto directo por WhatsApp</h5>
+                    <p className="text-zinc-400 text-xs mt-0.5 leading-relaxed">
+                      Nos comunicaremos con vos a la brevedad al <strong className="text-white font-mono">{signerPhone || reservation?.parentPhone}</strong> para coordinar cada detalle de la fiesta y darte la confirmación final.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reassurance banner */}
+              <div className="bg-[#F2C700]/10 border border-[#F2C700]/30 rounded-2xl p-4 text-xs text-zinc-300 space-y-1.5 text-center">
+                <p className="font-black text-[#F2C700] uppercase text-xs flex items-center justify-center gap-1.5">
+                  <Info className="w-4 h-4" /> ¿Tenés alguna consulta o todavía no enviaste el comprobante de la seña?
+                </p>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Podés enviárnoslo por WhatsApp para agilizar la confirmación definitiva del turno.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <a
+                  href={waReceiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-black font-black text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg hover:scale-[1.02]"
+                >
+                  <MessageCircle className="w-4 h-4 fill-black text-black" />
+                  <span>Enviar Comprobante / Escribir por WhatsApp</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-black text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <span>Entendido, volver al sitio</span>
+                </button>
+              </div>
+            </div>
+          ) : isSubmitted ? (
             /* SUCCESS CONFIRMATION STATE */
             <div className="py-8 px-4 text-center space-y-6">
               <div className="w-20 h-20 rounded-full bg-[#A3BA13]/20 border-2 border-[#A3BA13] flex items-center justify-center text-[#A3BA13] mx-auto animate-bounce">
@@ -525,6 +604,15 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
                 <p className="text-xs sm:text-sm text-zinc-300 font-medium leading-relaxed">
                   Los datos han sido incorporados correctamente a la reserva.
                 </p>
+
+                <div className="bg-[#1EB8BF]/15 border border-[#1EB8BF]/40 rounded-2xl p-3 max-w-md mx-auto text-center mt-2 space-y-0.5">
+                  <p className="text-xs sm:text-sm font-black text-white flex items-center justify-center gap-1.5 uppercase">
+                    <CheckCircle2 className="w-4 h-4 text-[#1EB8BF]" /> A la brevedad nos ponemos en contacto con vos
+                  </p>
+                  <p className="text-[11px] text-zinc-300">
+                    Revisaremos los datos y te confirmaremos los pasos siguientes por WhatsApp.
+                  </p>
+                </div>
               </div>
 
               {/* Summary Card */}
@@ -629,10 +717,14 @@ export const LiabilityWaiverFormModal: React.FC<LiabilityWaiverFormModalProps> =
 
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-6 py-2.5 rounded-xl bg-[#1EB8BF] hover:bg-[#19a1a7] text-black font-black text-xs uppercase flex items-center gap-2 transition-all cursor-pointer shadow-lg"
+                  onClick={() => {
+                    setShowFollowUpNotice(true);
+                    scrollToTop();
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-[#1EB8BF] hover:bg-[#19a1a7] text-black font-black text-xs uppercase flex items-center gap-2 transition-all cursor-pointer shadow-lg hover:scale-[1.02]"
                 >
                   <span>Listo, Continuar</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

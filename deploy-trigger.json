@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.3",
-  "updatedAt": "2026-09-29T21:26:00Z",
-  "summary": "Turnos de fin de semana configurados para fechas especiales (12/10/2026, 9/11/2026, 11/11/2026, 23/11/2026, 7/12/2026, 8/12/2026, 25/12/2026), formato backup DD-MM-AAAA y acceso admin con logo presionado."
+  "version": "1.0.4",
+  "updatedAt": "2026-09-30T12:50:00Z",
+  "summary": "Pantalla y mensaje de confirmación de contacto a la brevedad tras completar y continuar en el formulario de términos de cumpleaños."
 }
