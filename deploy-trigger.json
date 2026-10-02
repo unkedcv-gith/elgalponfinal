@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.20",
-  "updatedAt": "2026-10-02T12:08:50Z",
-  "summary": "Creado archivo de verificación de Google Search Console en /public/googlef50c94dee6b0d697.html."
+  "version": "1.0.21",
+  "updatedAt": "2026-10-02T12:30:40Z",
+  "summary": "Agregada la etiqueta de seguimiento de Google Analytics (GA4 - G-H0PFF0HJ1D) en el head de index.html."
 }
