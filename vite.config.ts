@@ -7,6 +7,12 @@ export default defineConfig(() => {
   return {
     base: './',
     plugins: [react(), tailwindcss()],
+    build: {
+      target: 'es2022'
+    },
+    esbuild: {
+      target: 'es2022'
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

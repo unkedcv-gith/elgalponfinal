@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.19",
-  "updatedAt": "2026-09-30T23:36:17Z",
-  "summary": "Restaurado archivo de despliegue deploy.yml para permitir la ejecución manual y automática de deploys a Hostinger a través de GitHub Actions."
+  "version": "1.0.20",
+  "updatedAt": "2026-10-02T12:08:50Z",
+  "summary": "Creado archivo de verificación de Google Search Console en /public/googlef50c94dee6b0d697.html."
 }
