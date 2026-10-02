@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.22",
-  "updatedAt": "2026-10-02T12:43:04Z",
-  "summary": "Actualizado el ID de medición de Google Analytics a G-HN35E5GTZJ en el head de index.html."
+  "version": "1.0.23",
+  "updatedAt": "2026-10-02T12:56:19Z",
+  "summary": "Implementados metadatos avanzados de SEO (keywords, canonical, OpenGraph, Twitter Cards) y Schema.org JSON-LD para negocio local de eventos infantiles en La Plata."
 }
