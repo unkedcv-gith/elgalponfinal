@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.21",
-  "updatedAt": "2026-10-02T12:30:40Z",
-  "summary": "Agregada la etiqueta de seguimiento de Google Analytics (GA4 - G-H0PFF0HJ1D) en el head de index.html."
+  "version": "1.0.22",
+  "updatedAt": "2026-10-02T12:43:04Z",
+  "summary": "Actualizado el ID de medición de Google Analytics a G-HN35E5GTZJ en el head de index.html."
 }
