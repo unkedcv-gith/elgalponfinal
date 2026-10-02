@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.23",
-  "updatedAt": "2026-10-02T12:56:19Z",
-  "summary": "Implementados metadatos avanzados de SEO (keywords, canonical, OpenGraph, Twitter Cards) y Schema.org JSON-LD para negocio local de eventos infantiles en La Plata."
+  "version": "1.0.25",
+  "updatedAt": "2026-10-02T19:06:58Z",
+  "summary": "Configurado doble tracking GA4 (G-HN35E5GTZJ y G-H0PFF0HJ1D) para garantizar recepción de eventos en tiempo real tanto en la propiedad nueva como en la restaurada."
 }

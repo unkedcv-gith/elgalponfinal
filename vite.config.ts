@@ -8,10 +8,21 @@ export default defineConfig(() => {
     base: './',
     plugins: [react(), tailwindcss()],
     build: {
-      target: 'es2022'
+      target: 'es2022',
     },
     esbuild: {
-      target: 'es2022'
+      target: 'es2022',
+      supported: {
+        destructuring: true,
+      },
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'es2022',
+        supported: {
+          destructuring: true,
+        },
+      },
     },
     resolve: {
       alias: {
