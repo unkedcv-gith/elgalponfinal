@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.25",
-  "updatedAt": "2026-10-02T19:06:58Z",
-  "summary": "Configurado doble tracking GA4 (G-HN35E5GTZJ y G-H0PFF0HJ1D) para garantizar recepción de eventos en tiempo real tanto en la propiedad nueva como en la restaurada."
+  "version": "1.0.26",
+  "updatedAt": "2026-10-03T15:57:04Z",
+  "summary": "Corregido el script src de gtag.js para usar el contenedor activo de Google Tag (G-H0PFF0HJ1D) que despacha eventos a la propiedad 557079071 (G-HN35E5GTZJ)."
 }
