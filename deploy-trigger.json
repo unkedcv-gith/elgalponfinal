@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.26",
-  "updatedAt": "2026-10-03T15:57:04Z",
-  "summary": "Corregido el script src de gtag.js para usar el contenedor activo de Google Tag (G-H0PFF0HJ1D) que despacha eventos a la propiedad 557079071 (G-HN35E5GTZJ)."
+  "version": "1.0.27",
+  "updatedAt": "2026-10-10T13:26:10Z",
+  "summary": "Resuelta vulnerabilidad crítica en proxy-addr actualizando a v2.0.8 y parcheada vulnerabilidad en source-map-js (0 vulnerabilidades reportadas en npm audit)."
 }
