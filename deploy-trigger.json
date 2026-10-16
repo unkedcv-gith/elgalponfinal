@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.33",
-  "updatedAt": "2026-10-16T17:32:09Z",
-  "summary": "Eliminado el botón 'Ampliar' de la tira de miniaturas de fotos en ambas sucursales."
+  "version": "1.0.34",
+  "updatedAt": "2026-10-16T18:09:33Z",
+  "summary": "Configurada la Sede Calle 13 para mostrar las fotos por defecto al cargar, igual que la Sede Calle 5."
 }

@@ -684,7 +684,7 @@ export const BranchVideosSection: React.FC = () => {
             borderColor="border-[#1EB8BF]/60 hover:border-[#1EB8BF]"
             accentColor="border-[#1EB8BF] shadow-[#1EB8BF]/40"
             galleryPhotos={CALLE_13_GALLERY}
-            defaultView="video"
+            defaultView="gallery"
           />
 
         </div>
