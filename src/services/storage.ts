@@ -1157,37 +1157,254 @@ export const addCalendarBlock = async (
     createdAt: new Date().toISOString(),
   };
 
+  // Avoid creating exact duplicates
+  const isDuplicate = current.some((b) => {
+    if (b.type !== newBlock.type) return false;
+    const sameBranch = (b.branchId || 'all') === (newBlock.branchId || 'all');
+    if (!sameBranch) return false;
+
+    if (newBlock.type === 'single_day') {
+      return toSimpleDateString(b.date) === toSimpleDateString(newBlock.date);
+    }
+    if (newBlock.type === 'date_range') {
+      return (
+        toSimpleDateString(b.startDate) === toSimpleDateString(newBlock.startDate) &&
+        toSimpleDateString(b.endDate) === toSimpleDateString(newBlock.endDate)
+      );
+    }
+    if (newBlock.type === 'full_month') {
+      return b.monthKey === newBlock.monthKey || (b.year === newBlock.year && b.monthIndex === newBlock.monthIndex);
+    }
+    if (newBlock.type === 'full_year') {
+      return b.year === newBlock.year;
+    }
+    return false;
+  });
+
+  if (isDuplicate) {
+    const existing = current.find((b) => b.type === newBlock.type && (b.branchId || 'all') === (newBlock.branchId || 'all'));
+    if (existing) return existing;
+  }
+
   const updated = [newBlock, ...current];
   saveCalendarBlocks(updated);
 
   // Sync to Firestore
   try {
     const blockRef = doc(db, 'calendar_blocks', id);
-    setDoc(blockRef, sanitizeForFirestore(newBlock)).catch((e) =>
-      console.warn('Firestore calendar_block set notice:', e)
-    );
+    await setDoc(blockRef, sanitizeForFirestore(newBlock));
   } catch (err) {
-    console.warn('Firestore calendar_block error:', err);
+    console.warn('Firestore calendar_block set error:', err);
   }
 
   return newBlock;
 };
 
+export const addMultipleCalendarBlocks = async (
+  blocksData: Omit<CalendarBlock, 'id' | 'createdAt'>[]
+): Promise<CalendarBlock[]> => {
+  const current = getCalendarBlocks();
+  const created: CalendarBlock[] = [];
+
+  for (const blockData of blocksData) {
+    const id = `block_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    let branchName = blockData.branchName;
+    if (!branchName) {
+      if (blockData.branchId === 'calle-5') branchName = 'El Galpón Calle 5';
+      else if (blockData.branchId === 'calle-13') branchName = 'El Galpón Calle 13';
+      else branchName = 'Todas las Franquicias';
+    }
+
+    let finalMonthName = blockData.monthName;
+    let finalMonthKey = blockData.monthKey;
+    if (blockData.type === 'full_month') {
+      const y = blockData.year ?? new Date().getFullYear();
+      const m = blockData.monthIndex ?? new Date().getMonth();
+      finalMonthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+      finalMonthName = `${MONTH_NAMES_ES[m]} ${y}`;
+    }
+
+    const newBlock: CalendarBlock = {
+      ...blockData,
+      id,
+      branchName,
+      monthKey: finalMonthKey,
+      monthName: finalMonthName,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Avoid duplicate within batch or existing
+    const exists = current.some((b) => {
+      if (b.type !== newBlock.type) return false;
+      const sameBranch = (b.branchId || 'all') === (newBlock.branchId || 'all');
+      if (!sameBranch) return false;
+      if (newBlock.type === 'single_day') return toSimpleDateString(b.date) === toSimpleDateString(newBlock.date);
+      return false;
+    });
+
+    if (!exists) {
+      created.push(newBlock);
+    }
+  }
+
+  if (created.length > 0) {
+    const updated = [...created, ...current];
+    saveCalendarBlocks(updated);
+
+    try {
+      await Promise.allSettled(
+        created.map((b) => setDoc(doc(db, 'calendar_blocks', b.id), sanitizeForFirestore(b)))
+      );
+    } catch (err) {
+      console.warn('Firestore addMultipleCalendarBlocks error:', err);
+    }
+  }
+
+  return created;
+};
+
 export const removeCalendarBlock = async (id: string): Promise<CalendarBlock[]> => {
   const current = getCalendarBlocks();
-  const updated = current.filter((b) => b.id !== id);
+  const target = current.find((b) => b.id === id);
+  
+  // Find all matching blocks (including duplicates of the same date or month) to ensure clean unblock
+  const idsToDelete: string[] = [id];
+
+  if (target && target.type === 'single_day' && target.date) {
+    const targetDate = toSimpleDateString(target.date);
+    const targetBranch = target.branchId || 'all';
+    current.forEach((b) => {
+      if (b.type === 'single_day' && toSimpleDateString(b.date) === targetDate) {
+        if (targetBranch === 'all' || b.branchId === targetBranch || b.branchId === 'all') {
+          if (!idsToDelete.includes(b.id)) idsToDelete.push(b.id);
+        }
+      }
+    });
+  } else if (target && target.type === 'full_month') {
+    current.forEach((b) => {
+      if (
+        b.type === 'full_month' &&
+        (b.monthKey === target.monthKey || (b.year === target.year && b.monthIndex === target.monthIndex)) &&
+        ((b.branchId || 'all') === (target.branchId || 'all') || target.branchId === 'all')
+      ) {
+        if (!idsToDelete.includes(b.id)) idsToDelete.push(b.id);
+      }
+    });
+  }
+
+  const updated = current.filter((b) => !idsToDelete.includes(b.id));
   saveCalendarBlocks(updated);
 
   try {
-    const blockRef = doc(db, 'calendar_blocks', id);
-    deleteDoc(blockRef).catch((e) =>
-      console.warn('Firestore remove calendar_block notice:', e)
+    await Promise.allSettled(
+      idsToDelete.map((blockId) => deleteDoc(doc(db, 'calendar_blocks', blockId)))
     );
   } catch (err) {
     console.warn('Firestore remove calendar_block error:', err);
   }
 
   return updated;
+};
+
+export const removeCalendarBlocksForDate = async (
+  dateStr: string,
+  branchId: string = 'all'
+): Promise<CalendarBlock[]> => {
+  const targetDate = toSimpleDateString(dateStr);
+  if (!targetDate) return getCalendarBlocks();
+
+  const current = getCalendarBlocks();
+  const idsToDelete: string[] = [];
+
+  current.forEach((b) => {
+    const branchMatch = !branchId || branchId === 'all' || !b.branchId || b.branchId === 'all' || b.branchId === branchId;
+    if (!branchMatch) return;
+
+    if (b.type === 'single_day' && toSimpleDateString(b.date) === targetDate) {
+      idsToDelete.push(b.id);
+    }
+  });
+
+  const updated = current.filter((b) => !idsToDelete.includes(b.id));
+  saveCalendarBlocks(updated);
+
+  try {
+    await Promise.allSettled(
+      idsToDelete.map((blockId) => deleteDoc(doc(db, 'calendar_blocks', blockId)))
+    );
+  } catch (err) {
+    console.warn('Firestore removeCalendarBlocksForDate error:', err);
+  }
+
+  return updated;
+};
+
+export const cleanDuplicateCalendarBlocks = async (): Promise<CalendarBlock[]> => {
+  const current = getCalendarBlocks();
+  const seenKeys = new Set<string>();
+  const keep: CalendarBlock[] = [];
+  const duplicatesToDelete: string[] = [];
+
+  for (const b of current) {
+    let key = `${b.type}_${b.branchId || 'all'}`;
+    if (b.type === 'single_day') key += `_${toSimpleDateString(b.date)}`;
+    else if (b.type === 'date_range') key += `_${toSimpleDateString(b.startDate)}_${toSimpleDateString(b.endDate)}`;
+    else if (b.type === 'full_month') key += `_${b.monthKey || `${b.year}-${b.monthIndex}`}`;
+    else if (b.type === 'full_year') key += `_${b.year}`;
+
+    if (seenKeys.has(key)) {
+      duplicatesToDelete.push(b.id);
+    } else {
+      seenKeys.add(key);
+      keep.push(b);
+    }
+  }
+
+  if (duplicatesToDelete.length > 0) {
+    saveCalendarBlocks(keep);
+    try {
+      await Promise.allSettled(
+        duplicatesToDelete.map((id) => deleteDoc(doc(db, 'calendar_blocks', id)))
+      );
+    } catch (e) {
+      console.warn('Error deleting duplicates from Firestore:', e);
+    }
+  }
+
+  return keep;
+};
+
+export const toggleMonthBlock = async (
+  year: number,
+  monthIndex: number,
+  branchId: string = 'all',
+  reason: string = 'Mes bloqueado por la administración'
+): Promise<{ isBlocked: boolean; blocks: CalendarBlock[] }> => {
+  const current = getCalendarBlocks();
+  const targetKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+
+  const existing = current.find(
+    (b) =>
+      b.type === 'full_month' &&
+      (b.monthKey === targetKey || (b.year === year && b.monthIndex === monthIndex)) &&
+      ((b.branchId || 'all') === (branchId || 'all') || branchId === 'all')
+  );
+
+  if (existing) {
+    const updated = await removeCalendarBlock(existing.id);
+    return { isBlocked: false, blocks: updated };
+  } else {
+    await addCalendarBlock({
+      type: 'full_month',
+      branchId,
+      year,
+      monthIndex,
+      monthKey: targetKey,
+      monthName: `${MONTH_NAMES_ES[monthIndex]} ${year}`,
+      reason,
+    });
+    return { isBlocked: true, blocks: getCalendarBlocks() };
+  }
 };
 
 export const isDateBlocked = (
@@ -1533,16 +1750,10 @@ export const syncWithRemoteFirestore = async (): Promise<void> => {
     // 6. Sync Calendar Blocks (Bloqueos de Meses, Períodos y Días)
     try {
       const blocksSnapshot = await getDocs(collection(db, 'calendar_blocks'));
+      const remoteBlocks: CalendarBlock[] = [];
+      blocksSnapshot.forEach((d) => remoteBlocks.push(d.data() as CalendarBlock));
       if (!blocksSnapshot.empty) {
-        const remoteBlocks: CalendarBlock[] = [];
-        blocksSnapshot.forEach((d) => remoteBlocks.push(d.data() as CalendarBlock));
-        if (remoteBlocks.length > 0) {
-          const localBlocks = getCalendarBlocks();
-          const blockMap = new Map<string, CalendarBlock>();
-          localBlocks.forEach((b) => blockMap.set(b.id, b));
-          remoteBlocks.forEach((b) => blockMap.set(b.id, b));
-          saveCalendarBlocks(Array.from(blockMap.values()));
-        }
+        saveCalendarBlocks(remoteBlocks);
       }
     } catch (e) {
       console.warn('Calendar blocks sync notice:', e);
@@ -1565,16 +1776,12 @@ export const listenToFirestoreCalendarBlocks = (onUpdate?: (blocks: CalendarBloc
           remoteBlocks.push(d.data() as CalendarBlock);
         });
 
-        const localBlocks = getCalendarBlocks();
-        const blockMap = new Map<string, CalendarBlock>();
-        localBlocks.forEach((b) => blockMap.set(b.id, b));
-        remoteBlocks.forEach((b) => blockMap.set(b.id, b));
-
-        const merged = Array.from(blockMap.values()).sort(
+        // Remote Firestore is authoritative:
+        const sorted = remoteBlocks.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
-        saveCalendarBlocks(merged);
-        if (onUpdate) onUpdate(merged);
+        saveCalendarBlocks(sorted);
+        if (onUpdate) onUpdate(sorted);
       },
       (err) => {
         if (err?.code === 'unavailable') return;

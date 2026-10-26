@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.34",
-  "updatedAt": "2026-10-16T18:09:33Z",
-  "summary": "Configurada la Sede Calle 13 para mostrar las fotos por defecto al cargar, igual que la Sede Calle 5."
+  "version": "1.0.35",
+  "updatedAt": "2026-10-26T15:45:00Z",
+  "summary": "Corrección crítica del desbloqueo de fechas (eliminación limpia en Firestore y prevención de duplicados) y nueva suite de bloqueo por Días (puntuales y recurrentes), Meses completos y Períodos con presets rápidos y herramienta de desbloqueo forzado."
 }

@@ -8,7 +8,11 @@ import {
   toggleBlockDate, 
   getCalendarBlocks,
   addCalendarBlock,
+  addMultipleCalendarBlocks,
   removeCalendarBlock,
+  removeCalendarBlocksForDate,
+  cleanDuplicateCalendarBlocks,
+  toggleMonthBlock,
   MONTH_NAMES_ES,
   addReservation, 
   getBranches,
@@ -144,6 +148,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
   // Block date form state
   const [calendarBlocks, setCalendarBlocks] = useState<CalendarBlock[]>([]);
   const [blockType, setBlockType] = useState<CalendarBlockType>('single_day');
+  const [blockCategory, setBlockCategory] = useState<'dias' | 'periodos' | 'meses'>('dias');
+  const [dayBlockMode, setDayBlockMode] = useState<'single' | 'recurring'>('single');
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([2, 4]); // Default to Martes (2) y Jueves (4)
+  const [recurringMonth, setRecurringMonth] = useState<number>(new Date().getMonth());
+  const [recurringYear, setRecurringYear] = useState<number>(new Date().getFullYear());
   const [blockDateStr, setBlockDateStr] = useState(new Date().toISOString().split('T')[0]);
   const [blockStartDate, setBlockStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [blockEndDate, setBlockEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -151,6 +160,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
   const [blockMonthIndex, setBlockMonthIndex] = useState<number>(new Date().getMonth());
   const [blockReason, setBlockReason] = useState('Evento Privado / Mantenimiento');
   const [blockBranchId, setBlockBranchId] = useState<string>('all');
+  const [quickUnlockDate, setQuickUnlockDate] = useState<string>('');
+  const [blockActionMessage, setBlockActionMessage] = useState<string>('');
+  const [isProcessingBlock, setIsProcessingBlock] = useState<boolean>(false);
+  const [blocksBranchFilter, setBlocksBranchFilter] = useState<string>('all');
+  const [blocksTypeFilter, setBlocksTypeFilter] = useState<string>('all');
+  const [blocksSearchTerm, setBlocksSearchTerm] = useState<string>('');
 
   // Manual reservation state
   const [manualBranchId, setManualBranchId] = useState<string>('calle-5');
@@ -529,6 +544,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
 
   const handleCreateCalendarBlock = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsProcessingBlock(true);
     await addCalendarBlock({
       type: blockType,
       branchId: blockBranchId,
@@ -541,13 +557,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
     });
     setCalendarBlocks(getCalendarBlocks());
     setBlockedDates(getBlockedDates());
-    setBlockReason('Evento Privado / Mantenimiento');
+    setIsProcessingBlock(false);
+    setBlockActionMessage('Bloqueo guardado exitosamente en el calendario.');
+    setTimeout(() => setBlockActionMessage(''), 4000);
+  };
+
+  const handleCreateRecurringDayBlocks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedWeekdays.length === 0) {
+      alert('Por favor seleccioná al menos un día de la semana (ej. Martes o Jueves).');
+      return;
+    }
+
+    setIsProcessingBlock(true);
+    const daysInMonth = new Date(recurringYear, recurringMonth + 1, 0).getDate();
+    const blocksToCreate: Omit<CalendarBlock, 'id' | 'createdAt'>[] = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(recurringYear, recurringMonth, d);
+      const dayOfWeek = dateObj.getDay();
+      if (selectedWeekdays.includes(dayOfWeek)) {
+        const dateStr = `${recurringYear}-${String(recurringMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        blocksToCreate.push({
+          type: 'single_day',
+          branchId: blockBranchId,
+          date: dateStr,
+          reason: blockReason || 'Día no disponible / Mantenimiento',
+        });
+      }
+    }
+
+    if (blocksToCreate.length === 0) {
+      setIsProcessingBlock(false);
+      return;
+    }
+
+    await addMultipleCalendarBlocks(blocksToCreate);
+    setCalendarBlocks(getCalendarBlocks());
+    setBlockedDates(getBlockedDates());
+    setIsProcessingBlock(false);
+    setBlockActionMessage(`Se bloquearon ${blocksToCreate.length} fechas recurrentes en el calendario.`);
+    setTimeout(() => setBlockActionMessage(''), 4000);
   };
 
   const handleRemoveCalendarBlock = async (id: string) => {
+    setIsProcessingBlock(true);
     await removeCalendarBlock(id);
     setCalendarBlocks(getCalendarBlocks());
     setBlockedDates(getBlockedDates());
+    setIsProcessingBlock(false);
+    setBlockActionMessage('Fecha o período desbloqueado correctamente del calendario.');
+    setTimeout(() => setBlockActionMessage(''), 4000);
+  };
+
+  const handleQuickUnlockDate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickUnlockDate) return;
+    setIsProcessingBlock(true);
+    await removeCalendarBlocksForDate(quickUnlockDate, blockBranchId);
+    setCalendarBlocks(getCalendarBlocks());
+    setBlockedDates(getBlockedDates());
+    setIsProcessingBlock(false);
+    setBlockActionMessage(`Fecha ${formatDateDDMMAAAA(quickUnlockDate)} liberada completamente en el calendario.`);
+    setQuickUnlockDate('');
+    setTimeout(() => setBlockActionMessage(''), 4500);
+  };
+
+  const handleCleanDuplicates = async () => {
+    setIsProcessingBlock(true);
+    const cleaned = await cleanDuplicateCalendarBlocks();
+    setCalendarBlocks(cleaned);
+    setBlockedDates(getBlockedDates());
+    setIsProcessingBlock(false);
+    setBlockActionMessage('Depuración completada: Bloqueos duplicados eliminados.');
+    setTimeout(() => setBlockActionMessage(''), 4000);
+  };
+
+  const handleToggleMonth = async (mIndex: number) => {
+    setIsProcessingBlock(true);
+    const res = await toggleMonthBlock(blockYear, mIndex, blockBranchId, blockReason);
+    setCalendarBlocks(res.blocks);
+    setBlockedDates(getBlockedDates());
+    setIsProcessingBlock(false);
+    setBlockActionMessage(res.isBlocked ? 'Mes completo bloqueado exitosamente.' : 'Mes desbloqueado exitosamente.');
+    setTimeout(() => setBlockActionMessage(''), 4000);
   };
 
   const handleCreateManual = async (e: React.FormEvent) => {
@@ -1791,187 +1884,662 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
         {/* TAB 3: BLOQUEO DE FECHAS, PERÍODOS Y MESES                                */}
         {/* ========================================================================= */}
         {activeTab === 'bloqueo' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
-              <h3 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
-                <Lock className="w-5 h-5 text-[#ED3078]" /> Bloquear Calendario
-              </h3>
-
-              <form onSubmit={handleCreateCalendarBlock} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-300 uppercase">Sucursal a Bloquear</label>
-                  <select
-                    disabled={isFranquista}
-                    value={blockBranchId}
-                    onChange={(e) => setBlockBranchId(e.target.value)}
-                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                  >
-                    <option value="all">Todas las Sucursales</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+          <div className="space-y-6">
+            {/* Feedback / Notification Toast Banner */}
+            {blockActionMessage && (
+              <div className="p-4 bg-emerald-500/20 border-2 border-emerald-500/50 rounded-2xl flex items-center justify-between gap-3 text-emerald-300 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2.5 font-bold text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <span>{blockActionMessage}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setBlockActionMessage('')}
+                  className="text-xs text-emerald-400 hover:text-white underline cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+            )}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-300 uppercase">Tipo de Bloqueo</label>
-                  <select
-                    value={blockType}
-                    onChange={(e) => setBlockType(e.target.value as CalendarBlockType)}
-                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                  >
-                    <option value="single_day">Día Específico</option>
-                    <option value="date_range">Rango de Fechas (Período)</option>
-                    <option value="full_month">Mes Completo</option>
-                    <option value="full_year">Año Completo</option>
-                  </select>
+            {/* Top Branch Selector for Blocking */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#ED3078]/20 text-[#ED3078]">
+                    Control de Agenda
+                  </span>
+                  <span className="text-xs text-zinc-400 font-bold">
+                    SuperAdmin & Administración
+                  </span>
                 </div>
+                <h3 className="font-heading font-black text-xl text-white uppercase">
+                  Gestión de Bloqueos de Calendario
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Bloqueá días específicos, períodos completos o meses enteros para evitar reservas públicas en el sitio web.
+                </p>
+              </div>
 
-                {blockType === 'single_day' && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-zinc-300 uppercase flex items-center justify-between">
-                      <span>Fecha Específica *</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={blockDateStr}
-                      style={{ colorScheme: 'dark' }}
-                      onChange={(e) => setBlockDateStr(e.target.value)}
-                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
-                    />
-                  </div>
-                )}
+              {/* Branch Selector */}
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="text-xs font-bold text-zinc-300 uppercase shrink-0">Sucursal:</label>
+                <select
+                  disabled={isFranquista}
+                  value={blockBranchId}
+                  onChange={(e) => setBlockBranchId(e.target.value)}
+                  className="bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-white cursor-pointer focus:border-[#ED3078] outline-none"
+                >
+                  <option value="all">🏢 Todas las Sucursales</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>📍 {b.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-                {blockType === 'date_range' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-zinc-300 uppercase">Desde *</label>
-                      <input
-                        type="date"
-                        required
-                        value={blockStartDate}
-                        style={{ colorScheme: 'dark' }}
-                        onChange={(e) => setBlockStartDate(e.target.value)}
-                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-zinc-300 uppercase">Hasta *</label>
-                      <input
-                        type="date"
-                        required
-                        value={blockEndDate}
-                        style={{ colorScheme: 'dark' }}
-                        onChange={(e) => setBlockEndDate(e.target.value)}
-                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {blockType === 'full_month' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-zinc-300 uppercase">Mes *</label>
-                      <select
-                        value={blockMonthIndex}
-                        onChange={(e) => setBlockMonthIndex(Number(e.target.value))}
-                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                      >
-                        {MONTH_NAMES_ES.map((mName, idx) => (
-                          <option key={idx} value={idx}>{mName}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-zinc-300 uppercase">Año *</label>
-                      <select
-                        value={blockYear}
-                        onChange={(e) => setBlockYear(Number(e.target.value))}
-                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                      >
-                        {[2026, 2027, 2028, 2029, 2030].map((yr) => (
-                          <option key={yr} value={yr}>{yr}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {blockType === 'full_year' && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-zinc-300 uppercase">Año *</label>
-                    <select
-                      value={blockYear}
-                      onChange={(e) => setBlockYear(Number(e.target.value))}
-                      className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                    >
-                      {[2026, 2027, 2028, 2029, 2030, 2031].map((yr) => (
-                        <option key={yr} value={yr}>{yr}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-300 uppercase">Motivo del Bloqueo</label>
-                  <input
-                    type="text"
-                    required
-                    value={blockReason}
-                    onChange={(e) => setBlockReason(e.target.value)}
-                    className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
-                    placeholder="Ej. Vacaciones, Mantenimiento, Feriado"
-                  />
+            {/* Quick Unlock Tool (Para liberar fechas atascadas o duplicadas) */}
+            <div className="bg-zinc-950/80 border border-emerald-500/30 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-emerald-400 font-heading font-black text-sm uppercase">
+                  <Unlock className="w-4 h-4" />
+                  <span>Liberación Rápida de Fecha (Desbloqueo Forzado)</span>
                 </div>
+                <p className="text-xs text-zinc-400 max-w-xl">
+                  Si un día específico quedó marcado en rojo o tiene múltiples bloqueos duplicados, ingresá la fecha para eliminar cualquier bloqueo asociado y habilitarlo de inmediato en el calendario.
+                </p>
+              </div>
 
+              <form onSubmit={handleQuickUnlockDate} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                <input
+                  type="date"
+                  required
+                  value={quickUnlockDate}
+                  style={{ colorScheme: 'dark' }}
+                  onChange={(e) => setQuickUnlockDate(e.target.value)}
+                  className="bg-black border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white [color-scheme:dark] outline-none focus:border-emerald-500"
+                />
                 <button
                   type="submit"
-                  className="w-full bg-[#ED3078] hover:bg-[#d82469] text-white font-black text-xs uppercase py-3 rounded-xl transition-all cursor-pointer shadow-md"
+                  disabled={isProcessingBlock || !quickUnlockDate}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md disabled:opacity-50"
                 >
-                  Bloquear Calendario
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Liberar Fecha Ahora</span>
                 </button>
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
-              <h3 className="font-heading font-black text-lg text-white uppercase">Bloqueos Activos en el Calendario</h3>
-              {calendarBlocks.length === 0 ? (
-                <p className="text-xs text-zinc-400">No hay bloqueos de días, períodos o meses actualmente.</p>
-              ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {calendarBlocks.map((b) => (
-                    <div key={b.id} className="bg-black/60 border border-zinc-800 rounded-xl p-3.5 flex items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-[#ED3078]/20 text-[#ED3078] text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
-                            {b.type === 'single_day' ? 'Día Específico' : b.type === 'date_range' ? 'Rango de Fechas' : b.type === 'full_month' ? 'Mes Completo' : 'Año Completo'}
-                          </span>
-                          <span className="text-zinc-400 text-xs font-bold">
-                            {b.branchName || (b.branchId === 'all' ? 'Todas las Sucursales' : b.branchId)}
-                          </span>
-                        </div>
-                        <p className="text-xs font-black text-white">
-                          {b.type === 'single_day' && `Fecha: ${formatDateDDMMAAAA(b.date || '')}`}
-                          {b.type === 'date_range' && `Desde ${formatDateDDMMAAAA(b.startDate || '')} hasta ${formatDateDDMMAAAA(b.endDate || '')}`}
-                          {b.type === 'full_month' && `Mes: ${b.monthName || b.monthKey}`}
-                          {b.type === 'full_year' && `Año Completo: ${b.year}`}
-                        </p>
-                        <p className="text-[11px] text-zinc-400">Motivo: {b.reason}</p>
-                      </div>
+            {/* Main Blocking Interface: Grid with Controls & Active Blocks */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column: Blocking Controls (5 Cols) */}
+              <div className="lg:col-span-5 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <h4 className="font-heading font-black text-base text-white uppercase flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#ED3078]" />
+                    <span>Configurar Nuevo Bloqueo</span>
+                  </h4>
+                </div>
+
+                {/* Main 3 Modes Segmented Switcher */}
+                <div className="grid grid-cols-3 gap-1 bg-black/60 p-1 rounded-2xl border border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBlockCategory('dias');
+                      setBlockType('single_day');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-heading font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      blockCategory === 'dias'
+                        ? 'bg-[#ED3078] text-white shadow-md'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    📅 Días
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBlockCategory('periodos');
+                      setBlockType('date_range');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-heading font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      blockCategory === 'periodos'
+                        ? 'bg-[#1EB8BF] text-black font-black shadow-md'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    📆 Período
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBlockCategory('meses');
+                      setBlockType('full_month');
+                    }}
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-heading font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      blockCategory === 'meses'
+                        ? 'bg-[#F2C700] text-black font-black shadow-md'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    🗓️ Meses
+                  </button>
+                </div>
+
+                {/* OPTION 1: BLOQUEO POR DÍAS */}
+                {blockCategory === 'dias' && (
+                  <div className="space-y-4">
+                    {/* Sub-mode switcher: Día único vs Días de la semana recurrentes */}
+                    <div className="flex items-center gap-2 bg-black/40 p-1 rounded-xl border border-zinc-800 text-xs">
                       <button
-                        onClick={() => handleRemoveCalendarBlock(b.id)}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-bold text-emerald-400 flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-sm"
-                        title="Desbloquear y liberar fecha en el calendario"
+                        type="button"
+                        onClick={() => setDayBlockMode('single')}
+                        className={`flex-1 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                          dayBlockMode === 'single'
+                            ? 'bg-zinc-800 text-white border border-white/20'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
                       >
-                        <Unlock className="w-3.5 h-3.5" />
-                        <span>Desbloquear</span>
+                        Día Único
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDayBlockMode('recurring')}
+                        className={`flex-1 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                          dayBlockMode === 'recurring'
+                            ? 'bg-zinc-800 text-white border border-white/20'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        Días Recurrentes
                       </button>
                     </div>
-                  ))}
+
+                    {dayBlockMode === 'single' ? (
+                      <form onSubmit={handleCreateCalendarBlock} className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-zinc-300 uppercase">Fecha Específica *</label>
+                          <input
+                            type="date"
+                            required
+                            value={blockDateStr}
+                            style={{ colorScheme: 'dark' }}
+                            onChange={(e) => setBlockDateStr(e.target.value)}
+                            className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-zinc-300 uppercase">Motivo del Bloqueo</label>
+                          <input
+                            type="text"
+                            required
+                            value={blockReason}
+                            onChange={(e) => setBlockReason(e.target.value)}
+                            className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                            placeholder="Ej. Feriado, Mantenimiento, Evento Privado"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isProcessingBlock}
+                          className="w-full bg-[#ED3078] hover:bg-[#d82469] text-white font-black text-xs uppercase py-3 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-50"
+                        >
+                          {isProcessingBlock ? 'Guardando...' : 'Bloquear Este Día'}
+                        </button>
+                      </form>
+                    ) : (
+                      /* Días Recurrentes de la semana (ej: Martes y Jueves de un mes) */
+                      <form onSubmit={handleCreateRecurringDayBlocks} className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-zinc-300 uppercase">Días de la semana *</label>
+                            <span className="text-[11px] text-zinc-400">Seleccioná uno o más</span>
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1">
+                            {[
+                              { label: 'Dom', day: 0 },
+                              { label: 'Lun', day: 1 },
+                              { label: 'Mar', day: 2 },
+                              { label: 'Mié', day: 3 },
+                              { label: 'Jue', day: 4 },
+                              { label: 'Vie', day: 5 },
+                              { label: 'Sáb', day: 6 },
+                            ].map((d) => {
+                              const isChecked = selectedWeekdays.includes(d.day);
+                              return (
+                                <button
+                                  key={d.day}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isChecked) {
+                                      setSelectedWeekdays(selectedWeekdays.filter((w) => w !== d.day));
+                                    } else {
+                                      setSelectedWeekdays([...selectedWeekdays, d.day]);
+                                    }
+                                  }}
+                                  className={`py-2 text-center rounded-xl text-xs font-black uppercase transition-all cursor-pointer ${
+                                    isChecked
+                                      ? 'bg-[#ED3078] text-white shadow-sm ring-1 ring-white/50'
+                                      : 'bg-black border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                                  }`}
+                                >
+                                  {d.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Quick weekday presets */}
+                          <div className="flex items-center gap-1.5 pt-1 overflow-x-auto text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedWeekdays([2, 4])}
+                              className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                            >
+                              Martes y Jueves
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedWeekdays([1, 2, 3, 4, 5])}
+                              className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                            >
+                              Lunes a Viernes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedWeekdays([0, 6])}
+                              className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                            >
+                              Fines de semana
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Month and Year selection for recurring */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-300 uppercase">Mes a Aplicar *</label>
+                            <select
+                              value={recurringMonth}
+                              onChange={(e) => setRecurringMonth(Number(e.target.value))}
+                              className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                            >
+                              {MONTH_NAMES_ES.map((mName, idx) => (
+                                <option key={idx} value={idx}>{mName}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-300 uppercase">Año *</label>
+                            <select
+                              value={recurringYear}
+                              onChange={(e) => setRecurringYear(Number(e.target.value))}
+                              className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                            >
+                              {[2026, 2027, 2028, 2029].map((yr) => (
+                                <option key={yr} value={yr}>{yr}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-zinc-300 uppercase">Motivo del Bloqueo</label>
+                          <input
+                            type="text"
+                            required
+                            value={blockReason}
+                            onChange={(e) => setBlockReason(e.target.value)}
+                            className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                            placeholder="Ej. Días no laborables / Talleres / Mantenimiento"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isProcessingBlock || selectedWeekdays.length === 0}
+                          className="w-full bg-[#ED3078] hover:bg-[#d82469] text-white font-black text-xs uppercase py-3 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-50"
+                        >
+                          {isProcessingBlock ? 'Procesando...' : 'Bloquear Días Recurrentes'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {/* OPTION 2: BLOQUEO POR PERÍODOS (RANGOS DE FECHAS) */}
+                {blockCategory === 'periodos' && (
+                  <form onSubmit={handleCreateCalendarBlock} className="space-y-4">
+                    {/* Quick presets for range */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Atajos Rápidos de Período:</label>
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const end = new Date();
+                            end.setDate(now.getDate() + 7);
+                            setBlockStartDate(now.toISOString().split('T')[0]);
+                            setBlockEndDate(end.toISOString().split('T')[0]);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                        >
+                          Próximos 7 días
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const end = new Date();
+                            end.setDate(now.getDate() + 15);
+                            setBlockStartDate(now.toISOString().split('T')[0]);
+                            setBlockEndDate(end.toISOString().split('T')[0]);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                        >
+                          Próximos 15 días
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const y = new Date().getFullYear();
+                            setBlockStartDate(`${y}-07-15`);
+                            setBlockEndDate(`${y}-07-31`);
+                            setBlockReason('Receso Escolar de Invierno');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                        >
+                          Vacaciones de Invierno
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const y = new Date().getFullYear();
+                            setBlockStartDate(`${y}-12-24`);
+                            setBlockEndDate(`${y + 1}-01-02`);
+                            setBlockReason('Receso de Fiestas y Fin de Año');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+                        >
+                          Fin de Año
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-zinc-300 uppercase">Desde (Fecha Inicio) *</label>
+                        <input
+                          type="date"
+                          required
+                          value={blockStartDate}
+                          style={{ colorScheme: 'dark' }}
+                          onChange={(e) => setBlockStartDate(e.target.value)}
+                          className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-zinc-300 uppercase">Hasta (Fecha Fin) *</label>
+                        <input
+                          type="date"
+                          required
+                          value={blockEndDate}
+                          style={{ colorScheme: 'dark' }}
+                          onChange={(e) => setBlockEndDate(e.target.value)}
+                          className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white [color-scheme:dark]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Motivo del Bloqueo</label>
+                      <input
+                        type="text"
+                        required
+                        value={blockReason}
+                        onChange={(e) => setBlockReason(e.target.value)}
+                        className="w-full bg-black border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white"
+                        placeholder="Ej. Vacaciones de Invierno / Obras de Pintura"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessingBlock}
+                      className="w-full bg-[#1EB8BF] hover:bg-[#199ea5] text-black font-black text-xs uppercase py-3 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-50"
+                    >
+                      {isProcessingBlock ? 'Guardando...' : 'Bloquear Período Seleccionado'}
+                    </button>
+                  </form>
+                )}
+
+                {/* OPTION 3: BLOQUEO POR MESES (GRILLA DE MESES) */}
+                {blockCategory === 'meses' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-zinc-300 uppercase">Año a Gestionar:</label>
+                      <div className="flex items-center gap-1">
+                        {[2026, 2027, 2028].map((yr) => (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => setBlockYear(yr)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              blockYear === yr
+                                ? 'bg-[#F2C700] text-black font-black'
+                                : 'bg-black border border-zinc-800 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {yr}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      Hacé clic sobre cualquier mes para <strong className="text-white">bloquearlo o desbloquearlo</strong> de forma inmediata:
+                    </p>
+
+                    {/* 12-Month Grid with live block status */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {MONTH_NAMES_ES.map((mName, mIdx) => {
+                        const targetKey = `${blockYear}-${String(mIdx + 1).padStart(2, '0')}`;
+                        const isMonthBlocked = calendarBlocks.some(
+                          (b) =>
+                            b.type === 'full_month' &&
+                            (b.monthKey === targetKey || (b.year === blockYear && b.monthIndex === mIdx)) &&
+                            (!b.branchId || b.branchId === 'all' || blockBranchId === 'all' || b.branchId === blockBranchId)
+                        );
+
+                        return (
+                          <button
+                            key={mIdx}
+                            type="button"
+                            disabled={isProcessingBlock}
+                            onClick={() => handleToggleMonth(mIdx)}
+                            className={`p-3 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer border ${
+                              isMonthBlocked
+                                ? 'bg-red-950/60 border-red-500/60 text-red-300 hover:bg-red-900/70 shadow-md shadow-red-950/40'
+                                : 'bg-black/60 border-zinc-800 text-zinc-300 hover:border-emerald-500/50 hover:bg-zinc-800/80'
+                            }`}
+                            title={isMonthBlocked ? 'Mes Bloqueado - Clic para desbloquear' : 'Mes Disponible - Clic para bloquear'}
+                          >
+                            <span className="text-xs font-black uppercase tracking-wider">{mName}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                              isMonthBlocked ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-400'
+                            }`}>
+                              {isMonthBlocked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                              <span>{isMonthBlocked ? 'Bloqueado' : 'Abierto'}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Active Blocks List & Management (7 Cols) */}
+              <div className="lg:col-span-7 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
+                
+                {/* Header with Title and Duplicates Cleanup Action */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                  <div>
+                    <h4 className="font-heading font-black text-lg text-white uppercase flex items-center gap-2">
+                      <span>Bloqueos Activos en el Calendario</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-bold">
+                        {calendarBlocks.length}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      Revisá y liberá cualquier fecha, rango o mes bloqueado.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCleanDuplicates}
+                    disabled={isProcessingBlock}
+                    className="self-start sm:self-center px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                    title="Elimina bloqueos repetidos o redundantes para optimizar la base de datos"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-[#1EB8BF]" />
+                    <span>Depurar Duplicados</span>
+                  </button>
                 </div>
-              )}
+
+                {/* Filters Bar: Branch & Type */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <select
+                    value={blocksBranchFilter}
+                    onChange={(e) => setBlocksBranchFilter(e.target.value)}
+                    className="bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300"
+                  >
+                    <option value="all">Todas las Sucursales</option>
+                    <option value="calle-5">El Galpón Calle 5</option>
+                    <option value="calle-13">El Galpón Calle 13</option>
+                  </select>
+
+                  <select
+                    value={blocksTypeFilter}
+                    onChange={(e) => setBlocksTypeFilter(e.target.value)}
+                    className="bg-black border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300"
+                  >
+                    <option value="all">Todos los Tipos</option>
+                    <option value="single_day">Solo Días Específicos</option>
+                    <option value="date_range">Solo Períodos / Rangos</option>
+                    <option value="full_month">Solo Meses Completos</option>
+                  </select>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por fecha o motivo..."
+                      value={blocksSearchTerm}
+                      onChange={(e) => setBlocksSearchTerm(e.target.value)}
+                      className="w-full bg-black border border-zinc-800 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder:text-zinc-600 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Blocks Items List */}
+                {(() => {
+                  const filtered = calendarBlocks.filter((b) => {
+                    // Branch filter
+                    if (blocksBranchFilter !== 'all' && b.branchId && b.branchId !== 'all' && b.branchId !== blocksBranchFilter) {
+                      return false;
+                    }
+                    // Type filter
+                    if (blocksTypeFilter !== 'all' && b.type !== blocksTypeFilter) {
+                      return false;
+                    }
+                    // Search term
+                    if (blocksSearchTerm) {
+                      const term = blocksSearchTerm.toLowerCase();
+                      const matchDate = (b.date && b.date.includes(term)) || (b.startDate && b.startDate.includes(term)) || (b.endDate && b.endDate.includes(term));
+                      const matchReason = b.reason && b.reason.toLowerCase().includes(term);
+                      const matchMonth = b.monthName && b.monthName.toLowerCase().includes(term);
+                      if (!matchDate && !matchReason && !matchMonth) return false;
+                    }
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-black/40 border border-zinc-800 rounded-2xl space-y-2">
+                        <Lock className="w-8 h-8 text-zinc-600 mx-auto" />
+                        <p className="text-sm font-bold text-zinc-300">No hay bloqueos activos que coincidan con el filtro.</p>
+                        <p className="text-xs text-zinc-500">Todas las fechas correspondientes están habilitadas para reservas.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
+                      {filtered.map((b) => (
+                        <div
+                          key={b.id}
+                          className="bg-black/60 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                        >
+                          <div className="space-y-1 text-left">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                b.type === 'single_day'
+                                  ? 'bg-[#ED3078]/20 text-[#ED3078]'
+                                  : b.type === 'date_range'
+                                  ? 'bg-[#1EB8BF]/20 text-[#1EB8BF]'
+                                  : 'bg-[#F2C700]/20 text-[#F2C700]'
+                              }`}>
+                                {b.type === 'single_day'
+                                  ? 'Día Específico'
+                                  : b.type === 'date_range'
+                                  ? 'Rango / Período'
+                                  : b.type === 'full_month'
+                                  ? 'Mes Completo'
+                                  : 'Año Completo'}
+                              </span>
+
+                              <span className="text-xs text-zinc-400 font-bold">
+                                {b.branchName || (b.branchId === 'all' ? 'Todas las Sucursales' : b.branchId)}
+                              </span>
+                            </div>
+
+                            <p className="text-xs sm:text-sm font-black text-white">
+                              {b.type === 'single_day' && `📅 Fecha: ${formatDateDDMMAAAA(b.date || '')}`}
+                              {b.type === 'date_range' && `📆 Desde ${formatDateDDMMAAAA(b.startDate || '')} hasta ${formatDateDDMMAAAA(b.endDate || '')}`}
+                              {b.type === 'full_month' && `🗓️ Mes: ${b.monthName || b.monthKey}`}
+                              {b.type === 'full_year' && `Año: ${b.year}`}
+                            </p>
+
+                            <p className="text-xs text-zinc-400">
+                              <span className="text-zinc-500 font-medium">Motivo:</span> {b.reason}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={isProcessingBlock}
+                            onClick={() => handleRemoveCalendarBlock(b.id)}
+                            className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold text-emerald-400 flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-sm disabled:opacity-50 hover:scale-105 active:scale-95"
+                            title="Desbloquear y liberar fecha en el calendario"
+                          >
+                            <Unlock className="w-4 h-4 text-emerald-400" />
+                            <span>Desbloquear</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
             </div>
           </div>
         )}
