@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Cake, Sun, CalendarCheck, MessageCircle } from 'lucide-react';
+import { Home, Cake, Sun, CalendarCheck, MessageCircle, DollarSign } from 'lucide-react';
 import { BRAND_INFO } from '../data/initialData';
 
 interface MobileAppNavBarProps {
@@ -126,17 +126,17 @@ export const MobileAppNavBar: React.FC<MobileAppNavBarProps> = ({ onOpenBooking 
           )}
         </button>
 
-        {/* Tab 3: Reservar (Destacado Central estilo App) */}
+        {/* Tab 3: Valores (Destacado Central estilo App) */}
         <button
           type="button"
           onClick={handleBooking}
           className="flex flex-col items-center justify-center -mt-4 py-0 px-1 group cursor-pointer relative"
         >
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#F2C700] via-[#F2C700] to-[#A3BA13] text-black font-black flex items-center justify-center shadow-[0_0_20px_rgba(242,199,0,0.6)] border-2 border-black scale-105 active:scale-95 transition-all">
-            <CalendarCheck className="w-6 h-6 text-black" />
+            <DollarSign className="w-6 h-6 text-black" />
           </div>
           <span className="text-[10px] font-heading font-black tracking-tight mt-1 text-[#F2C700] uppercase">
-            Reservar
+            VALORES
           </span>
         </button>
 

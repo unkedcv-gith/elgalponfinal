@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.35",
-  "updatedAt": "2026-10-26T15:45:00Z",
-  "summary": "Corrección crítica del desbloqueo de fechas (eliminación limpia en Firestore y prevención de duplicados) y nueva suite de bloqueo por Días (puntuales y recurrentes), Meses completos y Períodos con presets rápidos y herramienta de desbloqueo forzado."
+  "version": "1.0.39",
+  "updatedAt": "2026-10-30T23:59:00Z",
+  "summary": "Reemplazado el texto del botón central de la barra de navegación móvil por 'VALORES'."
 }

@@ -7,7 +7,8 @@ import {
   Cake, 
   Smile, 
   Calendar, 
-  Activity 
+  Activity,
+  DollarSign 
 } from 'lucide-react';
 import { BRAND_INFO } from '../data/initialData';
 import heroVideo from '../assets/videos/video.mp4';
@@ -255,16 +256,16 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
                 </span>
               </button>
 
-              {/* Button 4: Reservar */}
+              {/* Button 4: Valores */}
               <button
                 onClick={() => scrollToSection('reservar')}
                 className="group bg-gradient-to-br from-[#F2C700] via-[#e6bd00] to-[#cfa300] hover:brightness-105 active:scale-95 border-2 border-white p-4 rounded-3xl flex flex-col items-center justify-center text-center aspect-[1/0.95] shadow-[0_8px_24px_rgba(242,199,0,0.55)] transition-all cursor-pointer"
               >
                 <div className="w-13 h-13 rounded-2xl bg-black text-[#F2C700] flex items-center justify-center shrink-0 shadow-lg group-hover:scale-110 group-active:scale-95 transition-transform mb-2">
-                  <Calendar className="w-7 h-7" />
+                  <DollarSign className="w-7 h-7" />
                 </div>
                 <span className="font-heading font-black text-base text-black uppercase tracking-wider block leading-tight">
-                  Reservar
+                  VALORES
                 </span>
                 <span className="text-[10px] text-zinc-950 font-black uppercase tracking-wider block mt-0.5">
                   Turnos Online
