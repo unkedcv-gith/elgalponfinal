@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Shield, Menu, X, Heart, MessageCircle } from 'lucide-react';
+import { Calendar, Shield, Menu, X, Heart, MessageCircle, DollarSign } from 'lucide-react';
 import { BRAND_INFO } from '../data/initialData';
 import logoBlanca from '../assets/images/marca_el_galpon_blanca.svg';
 
@@ -205,8 +205,8 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenBooking}
             className={`bg-zinc-950/90 hover:bg-[#1EB8BF] text-[#1EB8BF] hover:text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#1EB8BF] shadow-[0_0_12px_rgba(30,184,191,0.25)] hover:shadow-[0_0_22px_rgba(30,184,191,0.6)] transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${isScrolled ? 'px-4 py-2 hover:scale-100 text-[11px]' : 'px-5 py-2.5 hover:scale-105'}`}
           >
-            <Calendar className={`${isScrolled ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-current transition-all duration-300`} />
-            <span>RESERVAR TURNO</span>
+            <DollarSign className={`${isScrolled ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-current transition-all duration-300`} />
+            <span>VALORES TURNOS</span>
           </button>
         </div>
 

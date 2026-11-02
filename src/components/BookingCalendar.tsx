@@ -620,10 +620,10 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                 <div className="bg-gradient-to-r from-amber-500/15 via-[#F2C700]/20 to-amber-500/15 border-2 border-[#F2C700]/60 rounded-2xl p-3.5 sm:p-4 text-center space-y-1 shadow-lg">
                   <div className="flex items-center justify-center gap-2 text-[#F2C700] font-heading font-black text-xs sm:text-sm uppercase tracking-wide">
                     <Tag className="w-4 h-4 text-[#F2C700]" />
-                    <span>¡10% de Descuento de Lunes a Viernes!</span>
+                    <span>¡10% de Descuento de Lunes a Viernes y feriados!</span>
                   </div>
                   <p className="text-xs text-zinc-200 font-medium leading-relaxed max-w-xl mx-auto">
-                    De <strong className="text-white">lunes a viernes</strong> tenés un <strong className="text-[#F2C700]">10% de descuento</strong> sobre el contrato base. Sábados, domingos y feriados el valor es el de la placa para los cumpleaños.
+                    De <strong className="text-white">lunes a viernes y feriados</strong> tenés un <strong className="text-[#F2C700]">10% de descuento</strong> sobre el contrato base. Sábados y domingos el valor es el de la placa para los cumpleaños.
                   </p>
                 </div>
 
