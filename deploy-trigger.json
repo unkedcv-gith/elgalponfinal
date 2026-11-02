@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.42",
-  "updatedAt": "2026-11-02T02:53:00Z",
-  "summary": "Actualizado el texto del cartel de descuento en el paso 2 del calendario por '¡10% de Descuento de Lunes a Viernes y feriados!'."
+  "version": "1.0.44",
+  "updatedAt": "2026-11-02T11:45:00Z",
+  "summary": "Actualizado el icono del botón 'VALORES' del encabezado móvil por el símbolo '$' (DollarSign)."
 }

@@ -217,8 +217,8 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenBooking}
             className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F2C700] to-[#A3BA13] text-black font-heading font-black text-[11px] uppercase tracking-wide flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
           >
-            <Calendar className="w-3.5 h-3.5 text-black shrink-0" />
-            <span>Turnos</span>
+            <DollarSign className="w-3.5 h-3.5 text-black shrink-0" />
+            <span>VALORES</span>
           </button>
 
           <button
