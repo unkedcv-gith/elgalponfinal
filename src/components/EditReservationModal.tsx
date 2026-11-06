@@ -13,10 +13,11 @@ import {
   FileText, 
   Star,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  CalendarCheck
 } from 'lucide-react';
-import { Reservation, Branch, TimeSlot } from '../types';
-import { updateReservation, formatDateDDMMAAAA, getPricingSettings } from '../services/storage';
+import { Reservation, Branch } from '../types';
+import { updateReservation, formatDateDDMMAAAA, formatDateTimeDDMMAAAA, getReservationCreatedFormatted, getPricingSettings } from '../services/storage';
 import { TIME_SLOTS, HOLIDAYS } from '../data/initialData';
 
 const getAvailableSlotsForDate = (dateStr: string) => {
@@ -181,6 +182,10 @@ export const EditReservationModal: React.FC<EditReservationModalProps> = ({
               <h3 className="font-heading font-black text-base sm:text-lg text-white uppercase">
                 Editar Ficha del Cumpleaños
               </h3>
+              <div className="flex items-center gap-1.5 text-[11px] text-zinc-300 font-medium mt-0.5">
+                <CalendarCheck className="w-3.5 h-3.5 text-[#A3BA13] shrink-0" />
+                <span>Fecha de Solicitud: <strong className="text-white font-mono">{getReservationCreatedFormatted(reservation)}</strong></span>
+              </div>
             </div>
           </div>
 
@@ -198,9 +203,15 @@ export const EditReservationModal: React.FC<EditReservationModalProps> = ({
           
           {/* SECTION 1: Event Date, Slot & Branch */}
           <div className="bg-black/50 border border-zinc-800/80 rounded-2xl p-4 space-y-3.5">
-            <div className="flex items-center gap-2 text-zinc-300 font-bold text-[11px] uppercase border-b border-zinc-800 pb-2">
-              <CalendarIcon className="w-3.5 h-3.5 text-amber-400" />
-              <span>Fecha, Turno y Sucursal</span>
+            <div className="flex items-center justify-between gap-2 text-zinc-300 font-bold text-[11px] uppercase border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Fecha, Turno y Sucursal</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 lowercase normal-case">
+                <CalendarCheck className="w-3 h-3 text-[#A3BA13]" />
+                <span>solicitado el: <strong className="text-zinc-200 font-mono">{getReservationCreatedFormatted(reservation)}</strong></span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

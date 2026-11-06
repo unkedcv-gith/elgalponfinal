@@ -13,7 +13,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { Reservation } from '../types';
-import { formatWhatsAppNumber, formatDateDDMMAAAA, getPricingSettings } from '../services/storage';
+import { formatWhatsAppNumber, formatDateDDMMAAAA, getPricingSettings, getReservationCreatedFormatted } from '../services/storage';
 import { DEFAULT_BANK_INFO } from '../data/initialData';
 
 interface SendDepositRequestModalProps {
@@ -113,9 +113,13 @@ Para confirmar definitivamente la fecha en nuestro calendario y asegurar la excl
               <span className="text-zinc-400 font-bold">Cumpleañero/a:</span>
               <span className="text-amber-400 font-black">{reservation.childName} ({reservation.childAge} años)</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
               <span className="text-zinc-400 font-bold">Fecha & Sucursal:</span>
-              <span className="text-white font-bold">{reservation.date} • {reservation.slotTime} ({reservation.branchName})</span>
+              <span className="text-white font-bold">{formatDateDDMMAAAA(reservation.date)} • {reservation.slotTime} ({reservation.branchName})</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-400 font-bold">Fecha de Solicitud:</span>
+              <span className="text-[#A3BA13] font-mono font-bold">{getReservationCreatedFormatted(reservation)}</span>
             </div>
           </div>
 

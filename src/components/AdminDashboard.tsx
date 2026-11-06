@@ -30,6 +30,9 @@ import {
   generateWaiverWhatsAppMessage,
   generateWaiverShareLink,
   formatDateDDMMAAAA,
+  formatDateTimeDDMMAAAA,
+  getReservationCreatedFormatted,
+  getReservationCreatedDate,
   formatDateWithWeekday,
   formatWhatsAppNumber,
   syncWithRemoteFirestore,
@@ -107,6 +110,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarRange,
+  CalendarCheck,
   AlertTriangle,
   AlertOctagon,
   Unlock,
@@ -1462,6 +1466,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
                               )}
                               <span>{statusBadgeText}</span>
                             </span>
+
+                            {/* Fecha de Solicitud Pill */}
+                            <span
+                              className="px-2.5 py-1 h-8 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border bg-zinc-900 border-[#A3BA13]/40 text-zinc-200 shrink-0 shadow-sm"
+                              title="Fecha y hora exacta en que se realizó la solicitud de la reserva"
+                            >
+                              <CalendarCheck className="w-3.5 h-3.5 text-[#A3BA13] shrink-0" />
+                              <span>Solicitud: <strong className="text-white font-mono">{getReservationCreatedFormatted(res)}</strong></span>
+                            </span>
                           </div>
 
                           {/* Top-Right Pencil Edit Button (perfectly aligned with date & time) */}
@@ -1495,6 +1508,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onCloseAdmin }) 
                             <div className="flex items-center gap-2">
                               <Phone className="w-3.5 h-3.5 text-[#1EB8BF] shrink-0" />
                               <span>Cel: <strong className="text-white font-mono">{res.parentPhone}</strong></span>
+                            </div>
+                            
+                            {/* Fecha de Solicitud de la Reserva */}
+                            <div className="flex items-center gap-2 sm:col-span-2 bg-zinc-900/90 border border-zinc-700/80 rounded-lg px-2.5 py-1.5 text-zinc-300">
+                              <CalendarCheck className="w-4 h-4 text-[#A3BA13] shrink-0" />
+                              <span>Fecha de Solicitud: <strong className="text-white font-mono font-bold tracking-tight">{getReservationCreatedFormatted(res)}</strong></span>
                             </div>
                             {(() => {
                               const emailToShow = res.parentEmail || res.liabilityWaiver?.signerEmail;

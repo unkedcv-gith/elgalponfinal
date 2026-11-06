@@ -7,6 +7,7 @@ import {
   addReservation, 
   getBranches, 
   formatDateDDMMAAAA, 
+  formatDateTimeDDMMAAAA,
   formatDateWithWeekday,
   formatWhatsAppNumber,
   getPricingSettings,
@@ -89,6 +90,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
   const [notes, setNotes] = useState('');
 
   const [submittedReservation, setSubmittedReservation] = useState<Reservation | null>(null);
+  const [isSentToWhatsApp, setIsSentToWhatsApp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPricingDetailsMobile, setShowPricingDetailsMobile] = useState(false);
   const [showInclusionsDetails, setShowInclusionsDetails] = useState(false);
@@ -302,25 +304,33 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
     setIsSubmitting(true);
 
     try {
-      const newRes = await addReservation({
+      // NOTE: We DO NOT persist the reservation in the database yet!
+      // It stays as an uncommitted draft preview until the customer clicks "Enviar reserva de turno".
+      // This prevents unconfirmed drop-offs from appearing in Admin or SuperAdmin pending reservations.
+      const draftRes: Reservation = {
+        id: '', // Empty ID signifies it is an uncommitted draft preview
         branchId: selectedBranch.id,
         branchName: selectedBranch.name,
         date: selectedDateStr,
         slotId: selectedSlotId,
         slotTime: slotObj?.timeRange || '15:00 a 17:30 hs',
-        parentName,
-        parentPhone,
-        parentEmail,
-        childName,
+        parentName: parentName.trim(),
+        parentPhone: parentPhone.trim(),
+        parentEmail: parentEmail.trim(),
+        childName: childName.trim(),
         childAge,
         estimatedKids: 0,
+        status: 'pending',
+        depositPaid: false,
+        depositAmount: pricing.birthdays.depositAmount,
         additionalPackage,
         adultsFoodInfo,
-        notes,
-      });
+        notes: notes.trim(),
+        createdAt: new Date().toISOString(),
+      };
 
-      setSubmittedReservation(newRes);
-      if (onReservationCreated) onReservationCreated();
+      setSubmittedReservation(draftRes);
+      setIsSentToWhatsApp(false);
 
       // Smoothly scroll to the confirmation receipt view
       setTimeout(() => {
@@ -330,15 +340,53 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
         }
       }, 100);
     } catch (err) {
-      console.error('Error creating reservation:', err);
+      console.error('Error preparing reservation draft:', err);
       alert('Ocurrió un error al procesar tu solicitud. Por favor intenta nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleConfirmAndSendWhatsApp = async () => {
+    if (!submittedReservation) return;
+
+    // If it hasn't been saved to DB yet, save it now!
+    if (!submittedReservation.id) {
+      try {
+        const savedRes = await addReservation({
+          branchId: submittedReservation.branchId,
+          branchName: submittedReservation.branchName,
+          date: submittedReservation.date,
+          slotId: submittedReservation.slotId,
+          slotTime: submittedReservation.slotTime,
+          parentName: submittedReservation.parentName,
+          parentPhone: submittedReservation.parentPhone,
+          parentEmail: submittedReservation.parentEmail,
+          childName: submittedReservation.childName,
+          childAge: submittedReservation.childAge,
+          estimatedKids: submittedReservation.estimatedKids,
+          additionalPackage: submittedReservation.additionalPackage,
+          adultsFoodInfo: submittedReservation.adultsFoodInfo,
+          notes: submittedReservation.notes,
+        });
+
+        // Now that the user confirmed and sent, it is officially in the database
+        // and will appear in the Admin and SuperAdmin pending reservations list!
+        setSubmittedReservation(savedRes);
+        setIsSentToWhatsApp(true);
+        if (onReservationCreated) onReservationCreated();
+      } catch (err) {
+        console.error('Error saving confirmed reservation:', err);
+        alert('Ocurrió un error al registrar la reserva en el sistema. Por favor intenta nuevamente.');
+      }
+    } else {
+      setIsSentToWhatsApp(true);
+    }
+  };
+
   const handleResetForm = () => {
     setSubmittedReservation(null);
+    setIsSentToWhatsApp(false);
     setSelectedSlotId('');
     setSelectedDateStr('');
     setParentName('');
@@ -355,99 +403,124 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
   }, [selectedDateStr]);
 
   return (
-    <section id="reservar" className="w-full bg-gradient-to-b from-[#1EB8BF] via-[#1EB8BF] via-45% to-black text-white py-14 sm:py-20 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
+    <section id="reservar" className={`w-full bg-gradient-to-b from-[#1EB8BF] via-[#1EB8BF] via-45% to-black text-white transition-colors ${submittedReservation ? 'py-4 sm:py-16' : 'py-14 sm:py-20'}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-8">
         
-        {/* Header Bento Box */}
-        <div className="bg-black/75 backdrop-blur-md rounded-3xl border-2 border-white/20 p-6 sm:p-10 text-center space-y-3 shadow-2xl text-white">
-          <span className="inline-block px-4 py-1.5 rounded-full bg-[#1EB8BF] text-black font-heading font-black text-xs tracking-widest uppercase shadow-md">
-            Almanaque & Reservas
-          </span>
-          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-white">
-            Reservá tu <span className="text-[#F2C700] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">Fecha y Sucursal</span>
-          </h2>
-          <p className="text-zinc-200 text-sm sm:text-base font-medium max-w-2xl mx-auto leading-relaxed">
-            Elegí tu sucursal de El Galpón, seleccioná el día en el calendario para consultar turnos disponibles y solicitá tu reserva para congelar tarifa.
-          </p>
-        </div>
+        {/* Header Bento Box - hidden when in confirmation view so the voucher starts right at the top on mobile */}
+        {!submittedReservation && (
+          <div className="bg-black/75 backdrop-blur-md rounded-3xl border-2 border-white/20 p-6 sm:p-10 text-center space-y-3 shadow-2xl text-white">
+            <span className="inline-block px-4 py-1.5 rounded-full bg-[#1EB8BF] text-black font-heading font-black text-xs tracking-widest uppercase shadow-md">
+              Almanaque & Reservas
+            </span>
+            <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-white">
+              Reservá tu <span className="text-[#F2C700] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">Fecha y Sucursal</span>
+            </h2>
+            <p className="text-zinc-200 text-sm sm:text-base font-medium max-w-2xl mx-auto leading-relaxed">
+              Elegí tu sucursal de El Galpón, seleccioná el día en el calendario para consultar turnos disponibles y solicitá tu reserva para congelar tarifa.
+            </p>
+          </div>
+        )}
 
         {submittedReservation ? (
-          /* Confirmation Receipt View */
-          <div className="max-w-2xl mx-auto bg-black/85 backdrop-blur-md border-2 border-white/20 rounded-3xl p-6 sm:p-8 space-y-6 text-center shadow-2xl text-white">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-[#A3BA13] text-[#A3BA13] flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-10 h-10" />
+          /* Confirmation Receipt View - Ultra Compact on Mobile so button stays inside screen height */
+          <div className="max-w-2xl mx-auto bg-black/85 backdrop-blur-md border-2 border-white/20 rounded-2xl sm:rounded-3xl p-3 sm:p-8 space-y-2.5 sm:space-y-6 text-center shadow-2xl text-white">
+            <div className="w-9 h-9 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-zinc-950 border border-[#A3BA13] text-[#A3BA13] flex items-center justify-center mx-auto shadow-md">
+              <CheckCircle2 className="w-5 h-5 sm:w-10 sm:h-10" />
             </div>
 
-            <div className="space-y-2">
-              <span className={`inline-block px-3.5 py-1 rounded-full text-xs font-black uppercase ${
+            <div className="space-y-1 sm:space-y-2">
+              <span className={`inline-block px-2.5 sm:px-3.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-black uppercase ${
                 submittedReservation.branchId === 'calle-5'
-                  ? 'bg-[#ED3078]/20 text-[#ED3078] border-2 border-[#ED3078]'
-                  : 'bg-[#1EB8BF]/20 text-[#1EB8BF] border-2 border-[#1EB8BF]'
+                  ? 'bg-[#ED3078]/20 text-[#ED3078] border border-[#ED3078]'
+                  : 'bg-[#1EB8BF]/20 text-[#1EB8BF] border border-[#1EB8BF]'
               }`}>
                 {submittedReservation.branchName}
               </span>
-              <h3 className="font-heading text-2xl sm:text-3xl font-black text-white uppercase">
-                ¡Solicitud de Reserva Registrada!
+              <h3 className="font-heading text-lg sm:text-3xl font-black text-[#F2C700] uppercase tracking-wide leading-tight">
+                Ultimo paso ya queda poco...
               </h3>
-              <p className="text-xs sm:text-sm text-zinc-300">
-                Tu solicitud de turno para el cumple de <strong className="text-[#F2C700]">{submittedReservation.childName}</strong> ya fue ingresada con éxito.
+              <p className="text-[11px] sm:text-sm text-zinc-200 font-medium max-w-lg mx-auto leading-tight sm:leading-relaxed">
+                Verifica bien los datos a reservar y oprimir el botón <strong className="text-[#25D366] font-bold underline">"enviar reserva de turno"</strong> para finalizar.
               </p>
             </div>
 
-            {/* Voucher Details */}
-            <div className="bg-zinc-950/80 border-2 border-zinc-800 rounded-2xl p-5 text-left space-y-3 font-sans text-xs sm:text-sm">
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
-                <span className="text-zinc-400 font-bold uppercase">Sucursal:</span>
-                <span className="text-white font-extrabold flex items-center gap-1">
-                  <MapPin className={`w-3.5 h-3.5 ${submittedReservation.branchId === 'calle-5' ? 'text-[#ED3078]' : 'text-[#1EB8BF]'}`} /> {submittedReservation.branchName}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
-                <span className="text-zinc-400 font-bold uppercase">Fecha Solicitada:</span>
-                <span className="text-white font-extrabold">{formatDateDDMMAAAA(submittedReservation.date)}</span>
-              </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
-                <span className="text-zinc-400 font-bold uppercase">Horario del Turno:</span>
-                <span className="text-[#F2C700] font-black">{submittedReservation.slotTime}</span>
-              </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
-                <span className="text-zinc-400 font-bold uppercase">Adulto Responsable:</span>
-                <span className="text-white font-medium">{submittedReservation.parentName} ({submittedReservation.parentPhone})</span>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span className="text-zinc-400 font-bold uppercase">Estado:</span>
-                <span className="text-amber-400 font-black uppercase tracking-wider">Pendiente de Seña (${pricing.birthdays.depositAmount.toLocaleString('es-AR')})</span>
+            {/* Voucher Details - Compact 2-column grid on mobile to save vertical space */}
+            <div className="bg-zinc-950/90 border border-zinc-800 sm:border-2 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 text-left font-sans shadow-inner">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:flex sm:flex-col sm:space-y-3">
+                
+                {/* 1. Sucursal */}
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b border-zinc-800/80 pb-1 sm:pb-2 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Sucursal:</span>
+                  <span className="text-white font-extrabold flex items-center gap-1 text-[11px] sm:text-sm truncate">
+                    <MapPin className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${submittedReservation.branchId === 'calle-5' ? 'text-[#ED3078]' : 'text-[#1EB8BF]'}`} /> 
+                    <span className="truncate">{submittedReservation.branchName}</span>
+                  </span>
+                </div>
+
+                {/* 2. Fecha Solicitada del Evento */}
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b border-zinc-800/80 pb-1 sm:pb-2 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Fecha Evento:</span>
+                  <span className="text-[#F2C700] font-black text-[11px] sm:text-sm">{formatDateDDMMAAAA(submittedReservation.date)}</span>
+                </div>
+
+                {/* 3. Horario */}
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b border-zinc-800/80 pb-1 sm:pb-2 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Horario:</span>
+                  <span className="text-white font-bold text-[11px] sm:text-sm">{submittedReservation.slotTime}</span>
+                </div>
+
+                {/* 4. Titular */}
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b border-zinc-800/80 pb-1 sm:pb-2 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Titular:</span>
+                  <span className="text-white font-medium text-[11px] sm:text-sm truncate">{submittedReservation.parentName}</span>
+                </div>
+
+                {/* 5. Fecha de Solicitud */}
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b border-zinc-800/80 sm:border-b pb-1 sm:pb-2 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Solicitud:</span>
+                  <span className="text-[#A3BA13] font-bold text-[10px] sm:text-xs font-mono truncate">{formatDateTimeDDMMAAAA(submittedReservation.createdAt)}</span>
+                </div>
+
+                {/* 6. Estado Seña */}
+                <div className="flex flex-col sm:flex-row sm:justify-between pt-0.5 sm:pt-1 min-w-0">
+                  <span className="text-zinc-400 font-bold uppercase text-[9px] sm:text-xs">Seña:</span>
+                  <span className="text-amber-400 font-black uppercase text-[10px] sm:text-xs tracking-tight truncate">Pendiente (${pricing.birthdays.depositAmount.toLocaleString('es-AR')})</span>
+                </div>
+
               </div>
             </div>
 
             {/* Direct WhatsApp Confirmation Button */}
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2 sm:space-y-3 pt-1">
               <a
                 href={`https://api.whatsapp.com/send?phone=${selectedBranch?.whatsappNumber ? formatWhatsAppNumber(selectedBranch.whatsappNumber) : '5492215731047'}&text=${encodeURIComponent(
                   `¡Hola ${submittedReservation.branchName}! 👋 Acabo de generar una solicitud de reserva web para el cumpleaños de *${submittedReservation.childName}* el día *${formatDateDDMMAAAA(submittedReservation.date)}* en el turno *${submittedReservation.slotTime}* 🎪🎉. Mi nombre es ${submittedReservation.parentName}. ¿Cómo coordinamos el pago de la seña de $${pricing.birthdays.depositAmount.toLocaleString('es-AR')}? 🎈`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-black font-heading font-black text-sm sm:text-base uppercase py-4 px-6 rounded-2xl flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(37,211,102,0.4)] transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                onClick={handleConfirmAndSendWhatsApp}
+                className="w-full bg-gradient-to-r from-[#20bd5a] via-[#25D366] to-[#20bd5a] hover:brightness-110 active:scale-95 text-black font-heading font-black text-xs sm:text-base uppercase py-3 sm:py-4 px-3 sm:px-6 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 sm:gap-2.5 shadow-[0_0_30px_rgba(37,211,102,0.6)] border-2 border-white transition-all cursor-pointer animate-heartbeat-btn"
               >
-                <MessageCircle className="w-5 h-5 text-black shrink-0" />
-                <span>Enviar reserva de turno</span>
+                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-black shrink-0 animate-bounce" />
+                <span>{isSentToWhatsApp ? '✓ Reserva enviada (Reabrir WhatsApp)' : 'Enviar reserva de turno'}</span>
               </a>
 
               {/* Mensaje llamativo debajo del botón */}
-              <div className="w-full py-3.5 px-4 rounded-2xl bg-zinc-950/90 border-2 border-[#F2C700] shadow-[0_0_25px_rgba(242,199,0,0.35)] text-center animate-in fade-in duration-300">
-                <p className="font-heading font-black text-sm sm:text-base uppercase tracking-wider text-[#F2C700] flex items-center justify-center gap-2">
-                  <Clock className="w-4 h-4 text-[#F2C700] shrink-0" />
-                  <span>¡En breve nos ponemos en contacto con vos!</span>
+              <div className="w-full py-2 sm:py-3.5 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-zinc-950/90 border border-[#F2C700]/70 sm:border-2 shadow-[0_0_20px_rgba(242,199,0,0.3)] text-center animate-in fade-in duration-300">
+                <p className="font-heading font-black text-xs sm:text-base uppercase tracking-wider text-[#F2C700] flex items-center justify-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#F2C700] shrink-0" />
+                  <span>{isSentToWhatsApp ? '¡Solicitud registrada y enviada!' : '¡En breve nos ponemos en contacto con vos!'}</span>
                 </p>
-                <p className="text-xs text-zinc-300 font-medium mt-1">
-                  Revisaremos tu solicitud y nos comunicaremos por WhatsApp para coordinar los detalles y enviarte la tarjeta virtual.
+                <p className="text-[10px] sm:text-xs text-zinc-300 font-medium mt-0.5 sm:mt-1 leading-tight sm:leading-normal">
+                  {isSentToWhatsApp
+                    ? 'Tu reserva ya fue guardada en el sistema como pendiente de seña. Nos comunicaremos contigo para coordinar el pago y enviarte la tarjeta virtual.'
+                    : 'Al oprimir el botón "Enviar reserva de turno", tu solicitud se registrará en el sistema de la sede y se abrirá WhatsApp para coordinar los detalles.'}
                 </p>
               </div>
 
               <button
                 onClick={handleResetForm}
-                className="w-full py-3 text-xs font-bold text-zinc-400 hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
+                className="w-full py-1.5 sm:py-3 text-[11px] sm:text-xs font-bold text-zinc-400 hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
               >
                 ← Realizar otra consulta o reserva
               </button>

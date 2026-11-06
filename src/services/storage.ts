@@ -51,6 +51,34 @@ export const normalizeBranchId = (idOrName?: string): string => {
   return clean;
 };
 
+// Robust helper to extract or fallback the creation ISO timestamp of a reservation
+export const getReservationCreatedDate = (res?: { createdAt?: string; id?: string; date?: string } | null): string => {
+  if (!res) return '';
+  if (res.createdAt && typeof res.createdAt === 'string' && res.createdAt.trim() !== '') {
+    return res.createdAt;
+  }
+  // Try recovering timestamp from id e.g. res_murc7e1q or res_1760638171000
+  if (res.id && typeof res.id === 'string' && res.id.startsWith('res_')) {
+    try {
+      const cleanId = res.id.replace('res_', '');
+      const idParts = cleanId.split('_');
+      const firstPart = idParts[0];
+      const ms = parseInt(firstPart, 36);
+      if (!isNaN(ms) && ms > 1577836800000 && ms < 2500000000000) {
+        return new Date(ms).toISOString();
+      }
+      const directMs = parseInt(firstPart, 10);
+      if (!isNaN(directMs) && directMs > 1577836800000 && directMs < 2500000000000) {
+        return new Date(directMs).toISOString();
+      }
+    } catch {}
+  }
+  if (res.date) {
+    return res.date;
+  }
+  return '';
+};
+
 // Robust parser to ensure all bookings from Firestore map properly
 export const parseReservationFromFirestore = (d: any): Reservation => {
   const data = (d && typeof d.data === 'function' ? d.data() : d || {}) as Record<string, any>;
@@ -78,7 +106,7 @@ export const parseReservationFromFirestore = (d: any): Reservation => {
     depositPaid: Boolean(data.depositPaid),
     depositAmount: Number(data.depositAmount) || 0,
     waiverStatus: data.waiverStatus || 'pending',
-    createdAt: data.createdAt || new Date().toISOString(),
+    createdAt: data.createdAt || (data.created_at) || (data.timestamp && typeof data.timestamp.toDate === 'function' ? data.timestamp.toDate().toISOString() : undefined) || getReservationCreatedDate({ id: rawId, date }) || new Date().toISOString(),
     notes: data.notes || '',
     additionalPackage: data.additionalPackage || 'base_20',
     adultsFoodInfo: data.adultsFoodInfo || '',
@@ -469,7 +497,20 @@ export const getReservations = (filterBranchId?: string): Reservation[] => {
     if (data) {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
-        list = parsed;
+        let changed = false;
+        list = parsed.map((r: Reservation) => {
+          if (!r.createdAt || typeof r.createdAt !== 'string' || r.createdAt.trim() === '') {
+            changed = true;
+            return {
+              ...r,
+              createdAt: getReservationCreatedDate(r) || new Date().toISOString()
+            };
+          }
+          return r;
+        });
+        if (changed) {
+          localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(list));
+        }
       } else {
         list = INITIAL_RESERVATIONS;
         localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(INITIAL_RESERVATIONS));
@@ -674,6 +715,31 @@ export const formatDateDDMMAAAA = (dateInput: string | Date | undefined | null):
     }
   } catch {}
   return String(dateInput);
+};
+
+export const formatDateTimeDDMMAAAA = (dateInput: string | Date | undefined | null): string => {
+  if (!dateInput) return '';
+  try {
+    const d = new Date(dateInput);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${mins} hs`;
+    }
+  } catch {}
+  return formatDateDDMMAAAA(dateInput);
+};
+
+export const getReservationCreatedFormatted = (res?: { createdAt?: string; id?: string; date?: string } | null): string => {
+  if (!res) return 'No registrada';
+  const raw = getReservationCreatedDate(res);
+  const formatted = formatDateTimeDDMMAAAA(raw);
+  if (formatted) return formatted;
+  if (res.date) return formatDateDDMMAAAA(res.date);
+  return 'No registrada';
 };
 
 export const formatDateWithWeekday = (dateStr: string): string => {

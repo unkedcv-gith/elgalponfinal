@@ -103,5 +103,37 @@
   }
 }
 
+/* Eye-catching heartbeat animation for primary action button */
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(37, 211, 102, 0.45);
+  }
+  14% {
+    transform: scale(1.04);
+    box-shadow: 0 0 35px rgba(37, 211, 102, 0.8), 0 0 15px rgba(255, 255, 255, 0.6);
+  }
+  28% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(37, 211, 102, 0.45);
+  }
+  42% {
+    transform: scale(1.06);
+    box-shadow: 0 0 45px rgba(37, 211, 102, 0.95), 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(37, 211, 102, 0.45);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(37, 211, 102, 0.45);
+  }
+}
+
+.animate-heartbeat-btn {
+  animation: heartbeat 1.8s ease-in-out infinite;
+}
+
 
 

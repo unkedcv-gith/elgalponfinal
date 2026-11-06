@@ -11,7 +11,7 @@ import {
   Clock
 } from 'lucide-react';
 import { Reservation } from '../types';
-import { generateWaiverShareLink, formatWhatsAppNumber, formatDateDDMMAAAA } from '../services/storage';
+import { generateWaiverShareLink, formatWhatsAppNumber, formatDateDDMMAAAA, getReservationCreatedFormatted } from '../services/storage';
 
 interface ApproveDepositModalProps {
   isOpen: boolean;
@@ -88,9 +88,13 @@ export const ApproveDepositModal: React.FC<ApproveDepositModalProps> = ({
               <span className="text-zinc-400 font-bold">Cumpleañero/a:</span>
               <span className="text-amber-400 font-black">{reservation.childName} ({reservation.childAge} años)</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-zinc-800 pb-2">
               <span className="text-zinc-400 font-bold">Fecha & Sucursal:</span>
               <span className="text-white font-black">{formattedDate} • {reservation.slotTime} • {reservation.branchName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-400 font-bold">Fecha de Solicitud:</span>
+              <span className="text-[#A3BA13] font-mono font-bold">{getReservationCreatedFormatted(reservation)}</span>
             </div>
           </div>
 

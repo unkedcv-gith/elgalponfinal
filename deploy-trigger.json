@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.44",
-  "updatedAt": "2026-11-02T11:45:00Z",
-  "summary": "Actualizado el icono del botón 'VALORES' del encabezado móvil por el símbolo '$' (DollarSign)."
+  "version": "1.0.49",
+  "updatedAt": "2026-11-06T11:53:00Z",
+  "summary": "Visualización prominente e incondicional de la Fecha de Solicitud de Reserva en las fichas del panel de administración (en encabezado con badge y en recuadro de datos del cliente), modales de edición, aprobación de seña y visualización de términos."
 }

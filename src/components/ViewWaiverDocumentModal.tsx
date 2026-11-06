@@ -15,7 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Reservation, LiabilityWaiver } from '../types';
-import { formatDateDDMMAAAA } from '../services/storage';
+import { formatDateDDMMAAAA, formatDateTimeDDMMAAAA, getReservationCreatedFormatted } from '../services/storage';
 import logoBlanca from '../assets/images/marca_el_galpon_blanca.svg';
 
 interface ViewWaiverDocumentModalProps {
@@ -108,7 +108,7 @@ export const ViewWaiverDocumentModal: React.FC<ViewWaiverDocumentModalProps> = (
               </div>
 
               {/* Event Context */}
-              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                 <div>
                   <span className="text-zinc-500 font-bold block text-[10px] uppercase">Evento</span>
                   <span className="font-heading font-black text-white text-sm">Cumple de {reservation.childName}</span>
@@ -120,6 +120,10 @@ export const ViewWaiverDocumentModal: React.FC<ViewWaiverDocumentModalProps> = (
                 <div>
                   <span className="text-zinc-500 font-bold block text-[10px] uppercase">Sucursal</span>
                   <span className="font-bold text-white">{reservation.branchName}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-500 font-bold block text-[10px] uppercase">Fecha de Solicitud</span>
+                  <span className="font-bold text-[#A3BA13] font-mono">{getReservationCreatedFormatted(reservation)}</span>
                 </div>
               </div>
 
