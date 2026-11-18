@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.49",
-  "updatedAt": "2026-11-06T11:53:00Z",
-  "summary": "Visualización prominente e incondicional de la Fecha de Solicitud de Reserva en las fichas del panel de administración (en encabezado con badge y en recuadro de datos del cliente), modales de edición, aprobación de seña y visualización de términos."
+  "version": "1.0.50",
+  "updatedAt": "2026-11-18T13:23:00Z",
+  "summary": "Agregado popup promocional al cargar la web anunciando el 20% OFF durante Enero y Febrero del 2027, con diseño retro-pop de alto impacto y acceso directo al calendario de reservas de Enero 2027."
 }

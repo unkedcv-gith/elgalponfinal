@@ -15,12 +15,14 @@ import { LiabilityWaiverFormModal } from './components/LiabilityWaiverFormModal'
 import { FloatingChatbot } from './components/FloatingChatbot';
 import { MobileAppNavBar } from './components/MobileAppNavBar';
 import { MobileAppInstallPrompt } from './components/MobileAppInstallPrompt';
+import { PromoPopupModal } from './components/PromoPopupModal';
 import { isAdminAuthenticated, syncWithRemoteFirestore, logoutUser } from './services/storage';
 
 export default function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isPromoPopupOpen, setIsPromoPopupOpen] = useState(false);
 
   // Liability Waiver Direct URL Link State
   const [activeWaiverReservationId, setActiveWaiverReservationId] = useState<string | null>(null);
@@ -33,6 +35,8 @@ export default function App() {
     // Sync with Firebase in the background
     syncWithRemoteFirestore().catch(e => console.warn('Background sync failed:', e));
 
+    let openedWaiverFromUrl = false;
+
     const checkForWaiverParam = () => {
       try {
         const fullHref = window.location.href;
@@ -41,6 +45,7 @@ export default function App() {
         const urlParams = new URLSearchParams(window.location.search);
         const fromSearch = urlParams.get('waiver') || urlParams.get('deslinde');
         if (fromSearch) {
+          openedWaiverFromUrl = true;
           setActiveWaiverReservationId(fromSearch);
           setIsWaiverModalOpen(true);
           return;
@@ -54,6 +59,7 @@ export default function App() {
             const hashParams = new URLSearchParams(hash.substring(hashIdx));
             const fromHash = hashParams.get('waiver') || hashParams.get('deslinde');
             if (fromHash) {
+              openedWaiverFromUrl = true;
               setActiveWaiverReservationId(fromHash);
               setIsWaiverModalOpen(true);
               return;
@@ -62,6 +68,7 @@ export default function App() {
           if (hash.includes('waiver=')) {
             const parts = hash.split('waiver=');
             if (parts[1]) {
+              openedWaiverFromUrl = true;
               const cleanId = parts[1].split('&')[0];
               setActiveWaiverReservationId(decodeURIComponent(cleanId));
               setIsWaiverModalOpen(true);
@@ -73,6 +80,7 @@ export default function App() {
         // 3. Fallback regex on full URL
         const match = fullHref.match(/[?&#](?:waiver|deslinde)=([^&#]+)/i);
         if (match && match[1]) {
+          openedWaiverFromUrl = true;
           setActiveWaiverReservationId(decodeURIComponent(match[1]));
           setIsWaiverModalOpen(true);
         }
@@ -83,10 +91,19 @@ export default function App() {
 
     checkForWaiverParam();
 
+    // Open seasonal promotional popup on page load unless user entered via direct waiver link
+    let promoTimer: ReturnType<typeof setTimeout> | null = null;
+    if (!openedWaiverFromUrl) {
+      promoTimer = setTimeout(() => {
+        setIsPromoPopupOpen(true);
+      }, 250);
+    }
+
     window.addEventListener('popstate', checkForWaiverParam);
     window.addEventListener('hashchange', checkForWaiverParam);
 
     return () => {
+      if (promoTimer) clearTimeout(promoTimer);
       window.removeEventListener('popstate', checkForWaiverParam);
       window.removeEventListener('hashchange', checkForWaiverParam);
     };
@@ -268,6 +285,19 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Seasonal Promotional Popup on Page Load */}
+      <PromoPopupModal
+        isOpen={isPromoPopupOpen && !isAdminDashboardOpen && !isAdminLoginOpen && !isWaiverModalOpen}
+        onClose={() => setIsPromoPopupOpen(false)}
+        onAction={() => {
+          setIsPromoPopupOpen(false);
+          window.dispatchEvent(new Event('jumpToJan2027Promo'));
+          setTimeout(() => {
+            handleOpenBooking();
+          }, 80);
+        }}
+      />
 
     </div>
   );

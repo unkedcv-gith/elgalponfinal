@@ -141,9 +141,15 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
     const handleStorageUpdate = () => {
       loadData();
     };
+    const handleJumpToJan2027 = () => {
+      setCurrentDate(new Date(2027, 0, 1));
+      setSelectedDateStr('');
+      setSelectedSlotId('');
+    };
     window.addEventListener('storageUpdate', handleStorageUpdate);
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('pricingUpdate', handleStorageUpdate);
+    window.addEventListener('jumpToJan2027Promo', handleJumpToJan2027);
     const unsub = listenToPricingSettings((updated) => setPricing(updated));
     const unsubBlocks = listenToFirestoreCalendarBlocks(() => {
       setAllBlockedDates(getBlockedDates());
@@ -153,6 +159,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
       window.removeEventListener('storageUpdate', handleStorageUpdate);
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('pricingUpdate', handleStorageUpdate);
+      window.removeEventListener('jumpToJan2027Promo', handleJumpToJan2027);
       unsub();
       unsubBlocks();
     };
