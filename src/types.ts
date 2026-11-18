@@ -209,11 +209,13 @@ export interface DaycarePricingOption {
   days: number; // 1 to 5
   hours: number; // 1 to 5
   price: number; // e.g. 90000
+  discountPercent?: number; // 0 to 100
 }
 
 export interface DaycareDailyOption {
   hours: number; // 1 to 5
   price: number; // e.g. 9500
+  discountPercent?: number; // 0 to 100
 }
 
 export interface BirthdayMonthPrice {
@@ -222,6 +224,8 @@ export interface BirthdayMonthPrice {
   basePrice: number;
   basePriceCalle5?: number;
   basePriceCalle13?: number;
+  discountCalle5?: number; // % descuento independiente base Calle 5
+  discountCalle13?: number; // % descuento independiente base Calle 13
   additionalsCalle5?: BirthdayAdditionalPrice[];
   additionalsCalle13?: BirthdayAdditionalPrice[];
   additionals?: BirthdayAdditionalPrice[];
@@ -240,7 +244,9 @@ export interface BirthdayAdditionalPrice {
 export interface PricingSettings {
   fitness: {
     onceAWeek: number; // 32000
+    onceAWeekDiscount?: number; // 0 to 100
     twiceAWeek: number; // 52000
+    twiceAWeekDiscount?: number; // 0 to 100
   };
   daycare: {
     options: DaycarePricingOption[];

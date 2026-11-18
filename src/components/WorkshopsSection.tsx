@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WORKSHOP_PROGRAMS, BRAND_INFO } from '../data/initialData';
 import { Clock, CheckCircle, MessageCircle, Tag } from 'lucide-react';
-import { getPricingSettings, formatCurrency, listenToPricingSettings } from '../services/storage';
+import { getPricingSettings, formatCurrency, listenToPricingSettings, calculateDiscountedPrice } from '../services/storage';
 import { PricingSettings } from '../types';
 
 export const WorkshopsSection: React.FC = () => {
@@ -21,6 +21,10 @@ export const WorkshopsSection: React.FC = () => {
       unsub();
     };
   }, []);
+
+  const onceInfo = calculateDiscountedPrice(pricing.fitness.onceAWeek, pricing.fitness.onceAWeekDiscount);
+  const twiceInfo = calculateDiscountedPrice(pricing.fitness.twiceAWeek, pricing.fitness.twiceAWeekDiscount);
+
   return (
     <section id="talleres" className="w-full bg-gradient-to-b from-[#1EB8BF] via-[#1EB8BF] via-45% to-[#A3BA13] text-black py-16 sm:py-24 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
@@ -78,18 +82,42 @@ export const WorkshopsSection: React.FC = () => {
                         <Tag className="w-3.5 h-3.5 text-[#F2C700] shrink-0" />
                         <span>Aranceles / Mensualidad</span>
                       </div>
-                      <div className="space-y-1.5 text-xs font-bold text-zinc-200">
-                        <div className="flex items-center justify-between gap-2">
+                      <div className="space-y-2 text-xs font-bold text-zinc-200">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="text-zinc-300 font-medium">1 vez por semana:</span>
-                          <span className="font-black text-white bg-black/60 px-2.5 py-1 rounded-md border border-white/15">
-                            {formatCurrency(pricing.fitness.onceAWeek)} <span className="text-[10px] font-normal text-zinc-400">(mensual)</span>
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {onceInfo.hasDiscount && (
+                              <>
+                                <span className="text-[10px] font-black bg-[#F2C700] text-black px-1.5 py-0.5 rounded">
+                                  {onceInfo.discountPercent}% OFF
+                                </span>
+                                <span className="text-zinc-400 line-through font-mono">
+                                  {formatCurrency(onceInfo.originalPrice)}
+                                </span>
+                              </>
+                            )}
+                            <span className="font-black text-white bg-black/60 px-2.5 py-1 rounded-md border border-white/15">
+                              {formatCurrency(onceInfo.finalPrice)} <span className="text-[10px] font-normal text-zinc-400">(mensual)</span>
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="text-zinc-300 font-medium">2 veces por semana:</span>
-                          <span className="font-black text-[#F2C700] bg-black/60 px-2.5 py-1 rounded-md border border-[#F2C700]/40">
-                            {formatCurrency(pricing.fitness.twiceAWeek)} <span className="text-[10px] font-normal text-zinc-400">(mensual)</span>
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {twiceInfo.hasDiscount && (
+                              <>
+                                <span className="text-[10px] font-black bg-[#F2C700] text-black px-1.5 py-0.5 rounded">
+                                  {twiceInfo.discountPercent}% OFF
+                                </span>
+                                <span className="text-zinc-400 line-through font-mono">
+                                  {formatCurrency(twiceInfo.originalPrice)}
+                                </span>
+                              </>
+                            )}
+                            <span className="font-black text-[#F2C700] bg-black/60 px-2.5 py-1 rounded-md border border-[#F2C700]/40">
+                              {formatCurrency(twiceInfo.finalPrice)} <span className="text-[10px] font-normal text-zinc-400">(mensual)</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>

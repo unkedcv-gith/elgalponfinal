@@ -1,6 +1,6 @@
 {
   "deploy": true,
-  "version": "1.0.50",
-  "updatedAt": "2026-11-18T13:23:00Z",
-  "summary": "Agregado popup promocional al cargar la web anunciando el 20% OFF durante Enero y Febrero del 2027, con diseño retro-pop de alto impacto y acceso directo al calendario de reservas de Enero 2027."
+  "version": "1.0.53",
+  "updatedAt": "2026-11-18T13:45:00Z",
+  "summary": "Ocultado el cartel de 10% de descuento de lunes a viernes y feriados en el almanaque durante Enero y Febrero de 2027."
 }

@@ -1935,6 +1935,8 @@ export const normalizePricingSettings = (parsed?: any): PricingSettings => {
       basePrice: typeof found.basePrice === 'number' ? found.basePrice : defMonth.basePrice,
       basePriceCalle5: typeof found.basePriceCalle5 === 'number' ? found.basePriceCalle5 : (typeof found.basePrice === 'number' ? found.basePrice : defMonth.basePriceCalle5),
       basePriceCalle13: typeof found.basePriceCalle13 === 'number' ? found.basePriceCalle13 : (typeof found.basePrice === 'number' ? found.basePrice : defMonth.basePriceCalle13),
+      discountCalle5: typeof found.discountCalle5 === 'number' ? found.discountCalle5 : 0,
+      discountCalle13: typeof found.discountCalle13 === 'number' ? found.discountCalle13 : 0,
       additionalsCalle5,
       additionalsCalle13,
       additionals: found.additionals || defMonth.additionals,
@@ -1955,7 +1957,9 @@ export const normalizePricingSettings = (parsed?: any): PricingSettings => {
   return {
     fitness: {
       onceAWeek: typeof parsed?.fitness?.onceAWeek === 'number' ? parsed.fitness.onceAWeek : INITIAL_PRICING_SETTINGS.fitness.onceAWeek,
+      onceAWeekDiscount: typeof parsed?.fitness?.onceAWeekDiscount === 'number' ? parsed.fitness.onceAWeekDiscount : 0,
       twiceAWeek: typeof parsed?.fitness?.twiceAWeek === 'number' ? parsed.fitness.twiceAWeek : INITIAL_PRICING_SETTINGS.fitness.twiceAWeek,
+      twiceAWeekDiscount: typeof parsed?.fitness?.twiceAWeekDiscount === 'number' ? parsed.fitness.twiceAWeekDiscount : 0,
     },
     daycare: {
       options: daycareOptionsToUse,
@@ -1972,6 +1976,34 @@ export const normalizePricingSettings = (parsed?: any): PricingSettings => {
       additionals: additionalsToUse,
     },
     updatedAt: parsed?.updatedAt || new Date().toISOString(),
+  };
+};
+
+export const calculateDiscountedPrice = (
+  originalPrice: number,
+  discountPercent?: number
+): {
+  originalPrice: number;
+  finalPrice: number;
+  discountPercent: number;
+  hasDiscount: boolean;
+} => {
+  const safePrice = Math.max(0, Number(originalPrice) || 0);
+  const safeDiscount = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  if (safeDiscount <= 0 || safePrice <= 0) {
+    return {
+      originalPrice: safePrice,
+      finalPrice: safePrice,
+      discountPercent: 0,
+      hasDiscount: false,
+    };
+  }
+  const finalPrice = Math.round(safePrice * (1 - safeDiscount / 100));
+  return {
+    originalPrice: safePrice,
+    finalPrice,
+    discountPercent: safeDiscount,
+    hasDiscount: true,
   };
 };
 

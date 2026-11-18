@@ -11,7 +11,7 @@ import {
   SlidersHorizontal,
   Zap
 } from 'lucide-react';
-import { getPricingSettings, formatCurrency, listenToPricingSettings } from '../services/storage';
+import { getPricingSettings, formatCurrency, listenToPricingSettings, calculateDiscountedPrice } from '../services/storage';
 import { BRAND_INFO, INITIAL_DAYCARE_DAILY_RATES } from '../data/initialData';
 import { PricingSettings } from '../types';
 
@@ -88,22 +88,32 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
     ? pricing.daycare.dailyRates
     : INITIAL_DAYCARE_DAILY_RATES;
   const currentDailyOption = safeDailyRates.find((r) => r.hours === selectedDailyHours);
-  const calculatedDailyPrice = currentDailyOption ? currentDailyOption.price : 0;
+  const dailyPriceInfo = calculateDiscountedPrice(
+    currentDailyOption ? currentDailyOption.price : 0,
+    currentDailyOption?.discountPercent
+  );
+  const calculatedDailyPrice = dailyPriceInfo.finalPrice;
 
   // MONTHLY PRICING CALCULATION
   const currentMonthlyOption = pricing.daycare.options.find(
     (opt) => opt.days === selectedDays && Math.abs(opt.hours - selectedHours) < 0.01
   );
-  const calculatedMonthlyPrice = currentMonthlyOption ? currentMonthlyOption.price : 0;
+  const monthlyPriceInfo = calculateDiscountedPrice(
+    currentMonthlyOption ? currentMonthlyOption.price : 0,
+    currentMonthlyOption?.discountPercent
+  );
+  const calculatedMonthlyPrice = monthlyPriceInfo.finalPrice;
+
+  const activePriceInfo = simulationMode === 'daily' ? dailyPriceInfo : monthlyPriceInfo;
 
   // WhatsApp Messages
   const whatsappDailyMessage = `Hola! Estuve calculando en el simulador de la web el Pase por 1 Día para el Espacio UP: 1 día puntual (${selectedDailyHours} ${
     selectedDailyHours === 1 ? 'hora' : 'horas'
-  }) por un arancel de ${formatCurrency(calculatedDailyPrice)}. ¿Tienen cupo disponible para esta semana?`;
+  }) por un arancel de ${formatCurrency(calculatedDailyPrice)}${dailyPriceInfo.hasDiscount ? ` (${dailyPriceInfo.discountPercent}% OFF promo aplicado)` : ''}. ¿Tienen cupo disponible para esta semana?`;
 
   const whatsappMonthlyMessage = `Hola! Estuve calculando en el simulador de la web para el Espacio UP: plan mensual de ${selectedDays} ${
     selectedDays === 1 ? 'día' : 'días'
-  } por semana (${formatHoursText(selectedHours)} por día) por un valor de ${formatCurrency(calculatedMonthlyPrice)} mensual. ¿Tienen vacantes disponibles?`;
+  } por semana (${formatHoursText(selectedHours)} por día) por un valor de ${formatCurrency(calculatedMonthlyPrice)} mensual${monthlyPriceInfo.hasDiscount ? ` (${monthlyPriceInfo.discountPercent}% OFF promo aplicado)` : ''}. ¿Tienen vacantes disponibles?`;
 
   const currentWhatsappMessage = simulationMode === 'daily' ? whatsappDailyMessage : whatsappMonthlyMessage;
   const whatsappHref = `${BRAND_INFO.whatsappUrl}?text=${encodeURIComponent(currentWhatsappMessage)}`;
@@ -267,22 +277,29 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((h) => {
                     const isSelected = selectedDailyHours === h;
                     const rateForH = safeDailyRates.find((r) => r.hours === h);
-                    const priceForH = rateForH ? rateForH.price : 0;
+                    const infoForH = calculateDiscountedPrice(rateForH ? rateForH.price : 0, rateForH?.discountPercent);
                     
                     return (
                       <button
                         key={`daily-hour-${h}`}
                         type="button"
                         onClick={() => setSelectedDailyHours(h)}
-                        className={`p-2 sm:p-2.5 rounded-xl font-heading font-black text-xs sm:text-sm uppercase transition-all flex flex-col items-center justify-center cursor-pointer ${
+                        className={`p-2 sm:p-2.5 rounded-xl font-heading font-black text-xs sm:text-sm uppercase transition-all flex flex-col items-center justify-center cursor-pointer relative ${
                           isSelected
                             ? 'bg-[#A3BA13] text-black font-black shadow-[0_0_15px_rgba(163,186,19,0.5)] scale-102 border-2 border-white'
-                            : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 border border-white/10'
+                            : infoForH.hasDiscount
+                              ? 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-[#F2C700]/60'
+                              : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 border border-white/10'
                         }`}
                       >
                         <span>{h} hs</span>
+                        {infoForH.hasDiscount && (
+                          <span className={`text-[8px] font-black leading-none ${isSelected ? 'text-black/80' : 'text-[#F2C700]'}`}>
+                            -{infoForH.discountPercent}%
+                          </span>
+                        )}
                         <span className="text-[9px] font-normal tracking-tight opacity-90">
-                          {formatCurrency(priceForH)}
+                          {formatCurrency(infoForH.finalPrice)}
                         </span>
                       </button>
                     );
@@ -360,7 +377,7 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
                     const opt = pricing.daycare.options.find(
                       (o) => o.days === selectedDays && Math.abs(o.hours - h) < 0.01
                     );
-                    const price = opt ? opt.price : 0;
+                    const optInfo = calculateDiscountedPrice(opt ? opt.price : 0, opt?.discountPercent);
                     return (
                       <button
                         key={`monthly-hour-${h}`}
@@ -369,12 +386,19 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
                         className={`p-2 sm:p-2.5 rounded-xl font-heading font-black text-xs sm:text-sm uppercase transition-all flex flex-col items-center justify-center cursor-pointer ${
                           isSelected
                             ? 'bg-[#F2C700] text-black font-black shadow-[0_0_15px_rgba(242,199,0,0.5)] scale-102 border-2 border-white'
-                            : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 border border-white/10'
+                            : optInfo.hasDiscount
+                              ? 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-[#F2C700]/60'
+                              : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 border border-white/10'
                         }`}
                       >
                         <span>{formatHoursLabel(h)}</span>
+                        {optInfo.hasDiscount && (
+                          <span className={`text-[8px] font-black leading-none ${isSelected ? 'text-black/80' : 'text-[#F2C700]'}`}>
+                            -{optInfo.discountPercent}%
+                          </span>
+                        )}
                         <span className="text-[9px] font-normal tracking-tight opacity-90">
-                          {price > 0 ? formatCurrency(price) : 'por día'}
+                          {optInfo.finalPrice > 0 ? formatCurrency(optInfo.finalPrice) : 'por día'}
                         </span>
                       </button>
                     );
@@ -402,17 +426,31 @@ export const DaycareSimulator: React.FC<DaycareSimulatorProps> = ({ embedded = f
         {/* OUTPUT & WHATSAPP CTA COLUMN                                              */}
         {/* ========================================================================= */}
         <div className={`lg:col-span-5 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black border-2 rounded-2xl p-5 sm:p-6 space-y-4 shadow-xl text-center flex flex-col justify-between ${
-          simulationMode === 'daily' ? 'border-[#A3BA13]/70' : 'border-[#F2C700]/70'
+          activePriceInfo.hasDiscount
+            ? 'border-[#F2C700]'
+            : simulationMode === 'daily' ? 'border-[#A3BA13]/70' : 'border-[#F2C700]/70'
         }`}>
           
           <div className="space-y-1">
-            <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider">
-              {simulationMode === 'daily' ? 'Tarifa Por Día Estimada' : 'Cuota Mensual Estimada'}
-            </span>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black text-zinc-400 uppercase tracking-wider">
+                {simulationMode === 'daily' ? 'Tarifa Por Día Estimada' : 'Cuota Mensual Estimada'}
+              </span>
+              {activePriceInfo.hasDiscount && (
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#F2C700] text-black">
+                  {activePriceInfo.discountPercent}% OFF PROMO
+                </span>
+              )}
+            </div>
+            {activePriceInfo.hasDiscount && (
+              <div className="text-base sm:text-lg font-mono font-bold text-zinc-400 line-through decoration-[#ED3078] decoration-2">
+                {formatCurrency(activePriceInfo.originalPrice)}
+              </div>
+            )}
             <div className={`text-3xl sm:text-4xl font-heading font-black tracking-tight ${
               simulationMode === 'daily' ? 'text-[#A3BA13]' : 'text-[#F2C700]'
             }`}>
-              {formatCurrency(simulationMode === 'daily' ? calculatedDailyPrice : calculatedMonthlyPrice)}
+              {formatCurrency(activePriceInfo.finalPrice)}
               <span className="text-xs font-bold text-zinc-400 block mt-0.5">
                 {simulationMode === 'daily' ? '/ pase por día' : '/ mes'}
               </span>

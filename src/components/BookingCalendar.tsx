@@ -12,6 +12,7 @@ import {
   formatWhatsAppNumber,
   getPricingSettings,
   formatCurrency,
+  calculateDiscountedPrice,
   listenToPricingSettings,
   isReservationExpired,
   getCurrentUser,
@@ -696,16 +697,18 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
               {/* Month Navigation & Grid */}
               <div className="max-w-3xl mx-auto space-y-4">
                 
-                {/* 10% Discount & Weekend Pricing Notice Banner */}
-                <div className="bg-gradient-to-r from-amber-500/15 via-[#F2C700]/20 to-amber-500/15 border-2 border-[#F2C700]/60 rounded-2xl p-3.5 sm:p-4 text-center space-y-1 shadow-lg">
-                  <div className="flex items-center justify-center gap-2 text-[#F2C700] font-heading font-black text-xs sm:text-sm uppercase tracking-wide">
-                    <Tag className="w-4 h-4 text-[#F2C700]" />
-                    <span>¡10% de Descuento de Lunes a Viernes y feriados!</span>
+                {/* 10% Discount & Weekend Pricing Notice Banner (hidden in Jan/Feb 2027) */}
+                {!(year === 2027 && (month === 0 || month === 1)) && (
+                  <div className="bg-gradient-to-r from-amber-500/15 via-[#F2C700]/20 to-amber-500/15 border-2 border-[#F2C700]/60 rounded-2xl p-3.5 sm:p-4 text-center space-y-1 shadow-lg">
+                    <div className="flex items-center justify-center gap-2 text-[#F2C700] font-heading font-black text-xs sm:text-sm uppercase tracking-wide">
+                      <Tag className="w-4 h-4 text-[#F2C700]" />
+                      <span>¡10% de Descuento de Lunes a Viernes y feriados!</span>
+                    </div>
+                    <p className="text-xs text-zinc-200 font-medium leading-relaxed max-w-xl mx-auto">
+                      De <strong className="text-white">lunes a viernes y feriados</strong> tenés un <strong className="text-[#F2C700]">10% de descuento</strong> sobre el contrato base. Sábados y domingos el valor es el de la placa para los cumpleaños.
+                    </p>
                   </div>
-                  <p className="text-xs text-zinc-200 font-medium leading-relaxed max-w-xl mx-auto">
-                    De <strong className="text-white">lunes a viernes y feriados</strong> tenés un <strong className="text-[#F2C700]">10% de descuento</strong> sobre el contrato base. Sábados y domingos el valor es el de la placa para los cumpleaños.
-                  </p>
-                </div>
+                )}
 
                 {/* Month Selector Bar */}
                 <div className="flex items-center justify-between bg-zinc-950/80 border border-white/15 rounded-2xl px-4 py-3">
@@ -766,9 +769,13 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
                   const currentMonthPricing = pricing.birthdays.monthlyBasePrices.find((m) => m.monthIndex === month);
                   const isCalle5 = selectedBranchId === 'calle-5';
-                  const basePrice = currentMonthPricing
+                  const basePriceRaw = currentMonthPricing
                     ? (isCalle5 ? (currentMonthPricing.basePriceCalle5 ?? currentMonthPricing.basePrice) : (currentMonthPricing.basePriceCalle13 ?? currentMonthPricing.basePrice))
                     : (isCalle5 ? 600000 : 550000);
+                  const baseDiscountPct = currentMonthPricing
+                    ? (isCalle5 ? (currentMonthPricing.discountCalle5 ?? 0) : (currentMonthPricing.discountCalle13 ?? 0))
+                    : 0;
+                  const basePriceInfo = calculateDiscountedPrice(basePriceRaw, baseDiscountPct);
 
                   const branchAdditionals = (() => {
                     if (isCalle5) {
@@ -796,9 +803,13 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                     }
                   })();
 
+                  const hasAnyMonthPromo = basePriceInfo.hasDiscount;
+
                   return (
                     <div className={`bg-gradient-to-br from-zinc-950/95 via-zinc-900/90 to-zinc-950/95 border-2 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl ${
-                      isCalle5 ? 'border-[#ED3078]/40' : 'border-[#1EB8BF]/40'
+                      hasAnyMonthPromo
+                        ? 'border-[#F2C700]/70'
+                        : isCalle5 ? 'border-[#ED3078]/40' : 'border-[#1EB8BF]/40'
                     }`}>
                       {/* Top Header with Month Base Price & Payment Badges */}
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
@@ -834,12 +845,28 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                         </div>
 
                         {/* Base Price Big Badge */}
-                        <div className="bg-black/90 border-2 border-[#F2C700]/60 px-5 py-3 rounded-2xl text-center md:text-right shrink-0 shadow-lg self-start md:self-center">
-                          <span className="text-[10px] font-black text-zinc-400 block uppercase tracking-wider">
-                            Valor Base {currentMonthPricing?.monthName || monthName}
-                          </span>
-                          <span className="font-heading font-black text-2xl sm:text-3xl text-[#F2C700]">
-                            {formatCurrency(basePrice)}
+                        <div className={`bg-black/90 border-2 px-5 py-3 rounded-2xl text-center md:text-right shrink-0 shadow-lg self-start md:self-center ${
+                          basePriceInfo.hasDiscount ? 'border-[#F2C700] shadow-[0_0_20px_rgba(242,199,0,0.22)]' : 'border-[#F2C700]/60'
+                        }`}>
+                          <div className="flex items-center justify-center md:justify-end gap-2">
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider">
+                              Valor Base {currentMonthPricing?.monthName || monthName}
+                            </span>
+                            {basePriceInfo.hasDiscount && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#F2C700] text-black">
+                                {basePriceInfo.discountPercent}% OFF
+                              </span>
+                            )}
+                          </div>
+
+                          {basePriceInfo.hasDiscount && (
+                            <div className="text-sm sm:text-base font-mono font-bold text-zinc-400 line-through decoration-[#ED3078] decoration-2 mt-0.5">
+                              {formatCurrency(basePriceInfo.originalPrice)}
+                            </div>
+                          )}
+
+                          <span className="font-heading font-black text-2xl sm:text-3xl text-[#F2C700] block leading-tight">
+                            {formatCurrency(basePriceInfo.finalPrice)}
                           </span>
                           <span className="text-[10px] text-zinc-400 block font-medium mt-0.5">
                             Base 20 chicos / 20 adultos
@@ -889,7 +916,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
                               }`}
                             >
                               <div className="space-y-1">
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center justify-between gap-1 flex-wrap">
                                   <span className="font-heading font-black text-xs sm:text-sm text-white uppercase">
                                     {add.name}
                                   </span>
